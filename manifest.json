@@ -1,0 +1,27 @@
+{
+  "name": "إدارة المزرعة v10.5 PWA Sync",
+  "short_name": "المزرعة",
+  "description": "تطبيق إدارة مزرعة الكتاكيت — قابل للتثبيت ومزامنة بين الأجهزة",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "dir": "rtl",
+  "lang": "ar",
+  "theme_color": "#141423",
+  "background_color": "#141423",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
