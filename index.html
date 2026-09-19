@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>إدارة المزرعة v10.9 Delete Sync</title>
-<meta name="description" content="تطبيق إدارة مزرعة الكتاكيت — نسخة v10.9 Delete Sync">
+<title>إدارة المزرعة v10.11 Smooth Scroll</title>
+<meta name="description" content="تطبيق إدارة مزرعة الكتاكيت — نسخة v10.11 Smooth Scroll">
 <meta name="theme-color" content="#141423">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -140,7 +140,7 @@ tr.total-row td{background:var(--total-row-bg);font-weight:800;color:var(--ink)}
 .theme-toggle:hover{background:var(--hover-strong)}
 .theme-toggle .icn{color:var(--blue-ink)}
 .app-shell{max-width:1600px;margin:0 auto;display:grid;grid-template-columns:240px minmax(0,1fr);gap:18px;padding:18px}
-.side-nav{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:10px;align-self:start;position:sticky;top:18px}.side-title{font-size:11.5px;color:var(--muted);padding:10px 12px 6px;font-weight:800;text-transform:uppercase;letter-spacing:.4px}
+.side-nav{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:10px;align-self:start;position:sticky;top:18px;max-height:calc(100dvh - 36px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;scrollbar-width:thin;scrollbar-gutter:stable}.side-nav::-webkit-scrollbar{width:6px;height:5px}.side-nav::-webkit-scrollbar-thumb{background:var(--line2);border-radius:999px}.side-nav::-webkit-scrollbar-track{background:transparent}.side-title{font-size:11.5px;color:var(--muted);padding:10px 12px 6px;font-weight:800;text-transform:uppercase;letter-spacing:.4px}
 .nav-btn{width:100%;border:0;background:transparent;text-align:right;padding:11px 14px;border-radius:11px;color:var(--nav-ink);font-size:13.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:10px;transition:.15s;margin-bottom:2px}.nav-btn span{font-size:17px;width:22px;text-align:center;display:inline-flex;justify-content:center}.nav-btn:hover{background:var(--nav-hover-bg)}.nav-btn.active{background:var(--blue);color:var(--on-accent);font-weight:800}
 .nav-divider{border-top:1px solid var(--line);margin:10px 6px}
 .main-area{min-width:0}.container{max-width:none;margin:0;padding:0}
@@ -170,8 +170,28 @@ tr.total-row td{background:var(--total-row-bg);font-weight:800;color:var(--ink)}
 .modal .m-actions{display:flex;gap:8px;margin-top:14px;justify-content:flex-start}
 .modal .m-body{margin-top:8px}
 .settings-note{margin-top:8px}.ltr-input{direction:ltr;text-align:left}
-@media(max-width:1200px){.top-inner{grid-template-columns:1fr 1.2fr}.top-tools{display:flex;position:fixed;left:18px;bottom:18px;z-index:995;background:var(--surface2);padding:8px;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.3);border:1px solid var(--line2)}.top-tools .top-tool{background:var(--blue);color:var(--on-accent);border-color:var(--blue)}.app-shell{grid-template-columns:210px minmax(0,1fr)}.home-grid{grid-template-columns:1fr}}
-@media(max-width:800px){.top-inner{grid-template-columns:1fr}.brand{justify-content:center}.app-shell{grid-template-columns:1fr;padding:10px}.side-nav{position:static;display:flex;overflow-x:auto}.side-title,.nav-divider{display:none}.nav-btn{min-width:125px;justify-content:center}.quick-strip{grid-template-columns:repeat(2,1fr)}.handover-layout{grid-template-columns:1fr}.handover-side{position:static}table{font-size:12.5px}}
+@media(max-width:1200px){
+  .top-inner{grid-template-columns:1fr 1.2fr}
+  .top-tools{display:flex;position:fixed;left:18px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:995;background:var(--surface2);padding:8px;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.3);border:1px solid var(--line2)}
+  .top-tools .top-tool{background:var(--blue);color:var(--on-accent);border-color:var(--blue)}
+  .app-shell{grid-template-columns:210px minmax(0,1fr);padding-bottom:calc(115px + env(safe-area-inset-bottom))}
+  .home-grid{grid-template-columns:1fr}
+}
+@media(max-width:800px){
+  .top-inner{grid-template-columns:1fr}.brand{justify-content:center}
+  .app-shell{grid-template-columns:1fr;padding:10px 10px calc(158px + env(safe-area-inset-bottom))}
+  .main-area,.container{min-height:0}
+  .side-nav{position:sticky;top:0;z-index:980;display:flex;overflow-x:auto;overflow-y:hidden;max-height:none;margin:0 -10px 10px;padding:8px 10px;border-radius:0 0 16px 16px;gap:4px;scroll-snap-type:x proximity;touch-action:pan-x;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}.side-title,.nav-divider{display:none}.nav-btn{flex:0 0 auto;min-width:128px;justify-content:center;scroll-snap-align:center;white-space:nowrap}
+  .quick-strip{grid-template-columns:repeat(2,1fr)}.handover-layout{grid-template-columns:1fr}.handover-side{position:static}table{font-size:12.5px}
+  .top-tools{left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));justify-content:center;gap:8px;padding:10px;border-radius:18px;max-width:none;max-height:calc(42vh - env(safe-area-inset-bottom));overflow:auto;-webkit-overflow-scrolling:touch}
+  .top-tools .top-tool,.top-tools .theme-toggle{flex:1 1 calc(50% - 8px);justify-content:center;min-width:135px;min-height:48px;padding:9px 8px;font-size:13px;white-space:nowrap}
+  .top-tools .theme-toggle{background:var(--surface3);color:var(--ink);border-color:var(--line2)}
+  .top-tools .icn{width:18px;height:18px;flex:0 0 18px}
+}
+@media(max-width:420px){
+  .app-shell{padding-bottom:calc(170px + env(safe-area-inset-bottom))}
+  .top-tools .top-tool,.top-tools .theme-toggle{min-width:128px;font-size:12.5px}
+}
 @media print{.side-nav,.top-tools,.quick-strip,button{display:none!important}.app-shell{display:block}}
 </style>
 </head>
@@ -415,7 +435,7 @@ tr.total-row td{background:var(--total-row-bg);font-weight:800;color:var(--ink)}
   </div>
 </div>
 
-<p class="small" style="text-align:center;padding:18px;color:var(--muted)">إدارة المزرعة v10.9 Delete Sync— قابل للتثبيت على أندرويد + مزامنة بين الموبايل والكمبيوتر — Offline</p>
+<p class="small" style="text-align:center;padding:18px;color:var(--muted)">إدارة المزرعة v10.11 Smooth Scroll — إصلاح سكرول القائمة الجانبية والموبايل — Offline</p>
 </div></main></div>
 <div id="toast" class="toast"></div>
 <div id="modal-bg" class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal"></div></div>
@@ -658,7 +678,7 @@ function checkIntegrity(includeAccepted){
 /* =====================================================================
    واجهة: تنقل + نافذة تعديل موحّدة (بدل prompt)
    ===================================================================== */
-function switchSideTab(id,btn){document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));const target=btn||document.querySelector('.nav-btn[data-tab="'+id+'"]');if(target)target.classList.add('active');document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));document.getElementById(id)?.classList.add('active');if(id==='report')renderReport();if(id==='audit')renderAudit();window.scrollTo({top:0,behavior:'smooth'})}
+function switchSideTab(id,btn){document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));const target=btn||document.querySelector('.nav-btn[data-tab="'+id+'"]');if(target){target.classList.add('active');try{target.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'})}catch(e){}}document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));document.getElementById(id)?.classList.add('active');if(id==='report')renderReport();if(id==='audit')renderAudit();window.scrollTo({top:0,behavior:'smooth'})}
 function goQuick(tab,inputId){switchSideTab(tab);setTimeout(()=>{if(inputId)document.getElementById(inputId)?.focus()},150)}
 function onGlobalCycleChange(){const sel=document.getElementById('global-cycle-select');selectedCycleId=sel.value||null;renderAll()}
 function selectCycleAndGo(cycleId,tab){selectedCycleId=cycleId;renderAll();switchSideTab(tab||'dashboard')}

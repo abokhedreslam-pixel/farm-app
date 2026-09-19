@@ -1,7 +1,7 @@
 {
-  "name": "إدارة المزرعة v10.9 Delete Sync",
+  "name": "إدارة المزرعة v10.11 Smooth Scroll",
   "short_name": "المزرعة",
-  "description": "تطبيق إدارة مزرعة الكتاكيت — مزامنة حذف ودمج بين الأجهزة",
+  "description": "تطبيق إدارة مزرعة الكتاكيت — إصلاح سكرول القائمة الجانبية والموبايل",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
