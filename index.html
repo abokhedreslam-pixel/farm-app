@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>إدارة المزرعة v10.5 PWA Sync</title>
-<meta name="description" content="تطبيق إدارة مزرعة الكتاكيت — نسخة v10.5 PWA Sync">
+<title>إدارة المزرعة v10.6 PWA Sync Fix</title>
+<meta name="description" content="تطبيق إدارة مزرعة الكتاكيت — نسخة v10.6 PWA Sync Fix">
 <meta name="theme-color" content="#141423">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -415,7 +415,7 @@ tr.total-row td{background:var(--total-row-bg);font-weight:800;color:var(--ink)}
   </div>
 </div>
 
-<p class="small" style="text-align:center;padding:18px;color:var(--muted)">إدارة المزرعة v10.5 PWA Sync — قابل للتثبيت على أندرويد + مزامنة بين الموبايل والكمبيوتر — Offline</p>
+<p class="small" style="text-align:center;padding:18px;color:var(--muted)">إدارة المزرعة v10.6 PWA Sync Fix — قابل للتثبيت على أندرويد + مزامنة بين الموبايل والكمبيوتر — Offline</p>
 </div></main></div>
 <div id="toast" class="toast"></div>
 <div id="modal-bg" class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal"></div></div>
@@ -1175,6 +1175,7 @@ function isLikelyScriptUrl(url){return /^https:\/\/script\.google\.com\/macros\/
 function appendHidden(form,name,value){const input=document.createElement('input');input.type='hidden';input.name=name;input.value=value;form.appendChild(input);return input}
 function appendSyncToken(form){const token=getSyncToken();if(token)appendHidden(form,'token',token)}
 function timeValue(v){const t=new Date(v||0).getTime();return Number.isFinite(t)?t:0}
+function businessRecordCount(source){const d=source&&source.cycles?source:db;return ['cycles','follows','sales','payments','feed_receipts','expenses','handovers'].reduce((a,k)=>a+(Array.isArray(d[k])?d[k].length:0),0)}
 function dbUpdatedAt(){return db.meta&&db.meta.updatedAt?db.meta.updatedAt:new Date(0).toISOString()}
 function setSyncStatus(msg){const el=document.getElementById('sync-status');if(el)el.innerHTML=msg}
 function syncStateText(){const st=SETTINGS();return st.googleScriptUrl?(st.autoSync?'المزامنة التلقائية مفعلة':'المزامنة جاهزة — التلقائية متوقفة'):'حط رابط Google Apps Script لتفعيل مزامنة الأجهزة'}
@@ -1184,7 +1185,9 @@ function saveSettings(){
   if(!nonNegative(w))return fail('الحد غير صالح');
   if(url&&!isLikelyScriptUrl(url)&&!confirm('الرابط مش باين كرابط Google Apps Script عادي. تحفظه برضه؟'))return;
   SETTINGS().waiveLimit=w;SETTINGS().ahaliCollector=a;SETTINGS().googleScriptUrl=url;SETTINGS().syncToken=token;SETTINGS().autoSync=auto;
-  save();setSyncStatus(syncStateText());toast('✅ تم حفظ الإعدادات'+(url?' — مزامنة الأجهزة جاهزة':' — المزامنة غير مفعلة بدون رابط'));
+  // حفظ الإعدادات فقط بدون تغيير وقت آخر تعديل للبيانات؛ عشان جهاز فاضي ما يكتبش فوق نسخة السحابة بالغلط.
+  persistDbOnly();renderAll();setSyncStatus(syncStateText());toast('✅ تم حفظ الإعدادات'+(url?' — مزامنة الأجهزة جاهزة':' — المزامنة غير مفعلة بدون رابط'));
+  if(auto&&url)setTimeout(()=>syncToGoogleDrive(true),500);
 }
 function renderSettings(){
   const w=document.getElementById('set-waive'),a=document.getElementById('set-ahali'),u=document.getElementById('set-google-url'),t=document.getElementById('set-sync-token'),as=document.getElementById('set-auto-sync');
@@ -1207,8 +1210,32 @@ async function syncToGoogleDrive(silent){
   const res=await pullDbFromCloud(!!silent);
   if(res&&res.ok&&res.db){
     const cloudTime=timeValue(res.updatedAt||(res.db.meta&&res.db.meta.updatedAt)),localTime=timeValue(dbUpdatedAt());
+    const cloudCount=businessRecordCount(res.db),localCount=businessRecordCount(db);
+
+    // حماية مهمة: جهاز جديد/فاضي بعد حفظ الإعدادات ما ينفعش يرفع قاعدة فاضية فوق بيانات السحابة.
+    if(cloudCount>0&&localCount===0){
+      applyCloudDb(res.db);if(!silent)toast('✅ تم تنزيل بيانات السحابة على الجهاز ده');return;
+    }
+
+    // لو السحابة فيها سجلات أكتر والجهاز أقل لكن توقيته أحدث، غالبًا ده بسبب حفظ إعدادات أو جهاز قديم.
+    // في الوضع التلقائي ما نرفعش الأقل فوق الأكتر. في اليدوي نسأل المستخدم.
+    if(cloudCount>localCount&&localTime>cloudTime+1000){
+      if(silent){setSyncStatus('⚠️ السحابة فيها بيانات أكثر من هذا الجهاز — اضغط مزامنة الآن للمراجعة قبل الرفع');return;}
+      if(confirm(`السحابة فيها بيانات أكثر من الجهاز ده.
+
+السحابة: ${cloudCount} حركة/سجل
+الجهاز: ${localCount} حركة/سجل
+
+موافق = تنزيل نسخة السحابة
+إلغاء = رفع نسخة الجهاز الحالية للسحابة`)){applyCloudDb(res.db);toast('✅ تم تنزيل بيانات السحابة');return}
+      pushDbToCloud(false);return;
+    }
+
     if(cloudTime>localTime+1000){
-      if(!silent&&!confirm('فيه نسخة أحدث على السحابة. تنزلها على الجهاز ده؟\n\nآخر تعديل محلي: '+fmtDateTime(dbUpdatedAt())+'\nآخر تعديل سحابي: '+fmtDateTime(res.updatedAt||(res.db.meta&&res.db.meta.updatedAt))))return;
+      if(!silent&&!confirm(`فيه نسخة أحدث على السحابة. تنزلها على الجهاز ده؟
+
+آخر تعديل محلي: ${fmtDateTime(dbUpdatedAt())}
+آخر تعديل سحابي: ${fmtDateTime(res.updatedAt||(res.db.meta&&res.db.meta.updatedAt))}`))return;
       applyCloudDb(res.db);if(!silent)toast('✅ تم تنزيل آخر نسخة من السحابة');return;
     }
     if(localTime>cloudTime+1000){pushDbToCloud(silent);return}

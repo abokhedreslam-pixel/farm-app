@@ -1,4 +1,4 @@
-const CACHE_NAME = 'farm-pwa-v10-5-sync-v1';
+const CACHE_NAME = 'farm-pwa-v10-6-sync-fix-v1';
 const APP_SHELL = [
   './',
   './index.html',
