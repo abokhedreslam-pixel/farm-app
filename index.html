@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>إدارة المزرعة v10.12 Collections + Profit Waterfall</title>
-<meta name="description" content="تطبيق إدارة مزرعة الكتاكيت — نسخة v10.12 Collections + Profit Waterfall">
+<title>إدارة المزرعة v10.13 Simple Numbers</title>
+<meta name="description" content="تطبيق إدارة مزرعة الكتاكيت — نسخة v10.13 Simple Numbers">
 <meta name="theme-color" content="#141423">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -441,7 +441,7 @@ tr.total-row td{background:var(--total-row-bg);font-weight:800;color:var(--ink)}
   </div>
 </div>
 
-<p class="small" style="text-align:center;padding:18px;color:var(--muted)">إدارة المزرعة v10.12 Collections + Profit Waterfall — دفتر تحصيلات مستقل وتحليل ربح احترافي — Offline</p>
+<p class="small" style="text-align:center;padding:18px;color:var(--muted)">إدارة المزرعة v10.13 Simple Numbers — أرقام بسيطة بدون فواصل كثيرة أو أصفار زائدة — Offline</p>
 </div></main></div>
 <div id="toast" class="toast"></div>
 <div id="modal-bg" class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal"></div></div>
@@ -489,8 +489,9 @@ function paginationBar(key,pages,page,total,renderFnName){
 /* ---------- أدوات أرقام ونصوص ---------- */
 const num=v=>{const n=typeof v==='number'?v:parseFloat(String(v==null?'':v).replace(/[,٬]/g,'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)));return Number.isFinite(n)?n:0};
 const r2=v=>Math.round((num(v)+Number.EPSILON)*100)/100;
-const money=v=>r2(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-const money0=v=>Math.round(num(v)).toLocaleString('en-US');
+const cleanNum=(v,max=2)=>{const n=r2(v);if(!Number.isFinite(n))return'0';return Number.isInteger(n)?String(n):n.toFixed(max).replace(/\.?0+$/,'')};
+const money=v=>cleanNum(v,2);
+const money0=v=>String(Math.round(num(v)));
 const qtyFmt=v=>{const n=num(v);return Number.isInteger(n)?String(n):n.toFixed(2)};
 const sum=(arr,fn)=>r2(arr.reduce((a,x)=>a+num(fn?fn(x):x),0));
 const positive=v=>Number.isFinite(v)&&v>0;
