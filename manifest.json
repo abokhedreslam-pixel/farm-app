@@ -1,7 +1,7 @@
 {
-  "name": "إدارة المزرعة v10.8 Live Merge Sync",
+  "name": "إدارة المزرعة v10.9 Delete Sync",
   "short_name": "المزرعة",
-  "description": "تطبيق إدارة مزرعة الكتاكيت — مزامنة تلقائية مباشرة بين الأجهزة ثم الشيت",
+  "description": "تطبيق إدارة مزرعة الكتاكيت — مزامنة حذف ودمج بين الأجهزة",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

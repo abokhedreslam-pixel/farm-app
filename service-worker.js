@@ -1,4 +1,4 @@
-const CACHE_NAME = 'farm-pwa-v10-8-live-merge-sync-v1';
+const CACHE_NAME = 'farm-pwa-v10-9-delete-sync-v1';
 const APP_SHELL = [
   './',
   './index.html',
