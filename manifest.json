@@ -1,8 +1,8 @@
 {
-  "name": "إدارة المزرعة v10.6 PWA Sync Fix",
+  "name": "إدارة المزرعة v10.5 PWA Sync",
   "short_name": "المزرعة",
-  "description": "تطبيق إدارة مزرعة الكتاكيت — قابل للتثبيت ومزامنة آمنة بين الأجهزة",
-  "start_url": "./index.html",
+  "description": "تطبيق إدارة مزرعة الكتاكيت — قابل للتثبيت ومزامنة بين الأجهزة",
+  "start_url": "./المزرعة_v10.5_pwa_sync.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",

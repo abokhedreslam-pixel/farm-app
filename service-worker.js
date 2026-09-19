@@ -1,7 +1,7 @@
-const CACHE_NAME = 'farm-pwa-v10-6-sync-fix-v1';
+const CACHE_NAME = 'farm-pwa-v10-5-sync-v1';
 const APP_SHELL = [
   './',
-  './index.html',
+  './المزرعة_v10.5_pwa_sync.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
@@ -40,7 +40,7 @@ self.addEventListener('fetch', event => {
       }).catch(() => null);
 
       if (req.mode === 'navigate') {
-        return network.then(res => res || cached || caches.match('./index.html'));
+        return network.then(res => res || cached || caches.match('./المزرعة_v10.5_pwa_sync.html'));
       }
       return cached || network;
     })
