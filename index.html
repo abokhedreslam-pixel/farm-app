@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>إدارة المزرعة v10.6 PWA Sync Fix</title>
-<meta name="description" content="تطبيق إدارة مزرعة الكتاكيت — نسخة v10.6 PWA Sync Fix">
+<title>إدارة المزرعة v10.8 Live Merge Sync</title>
+<meta name="description" content="تطبيق إدارة مزرعة الكتاكيت — نسخة v10.8 Live Merge Sync">
 <meta name="theme-color" content="#141423">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -415,7 +415,7 @@ tr.total-row td{background:var(--total-row-bg);font-weight:800;color:var(--ink)}
   </div>
 </div>
 
-<p class="small" style="text-align:center;padding:18px;color:var(--muted)">إدارة المزرعة v10.6 PWA Sync Fix — قابل للتثبيت على أندرويد + مزامنة بين الموبايل والكمبيوتر — Offline</p>
+<p class="small" style="text-align:center;padding:18px;color:var(--muted)">إدارة المزرعة v10.8 Live Merge Sync— قابل للتثبيت على أندرويد + مزامنة بين الموبايل والكمبيوتر — Offline</p>
 </div></main></div>
 <div id="toast" class="toast"></div>
 <div id="modal-bg" class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal"></div></div>
@@ -522,12 +522,15 @@ function migrate(d){
 try{const raw=storage.getItem(DB_KEY);if(raw)db=migrate(JSON.parse(raw));else db=EMPTY_DB()}catch(e){console.error(e);db=EMPTY_DB()}
 
 let _syncTimer=null;
+const SYNC_COLLECTIONS=['cycles','follows','sales','payments','feed_receipts','expenses','handovers'];
+function recordForSyncCompare(x){const y={...(x||{})};delete y._syncUpdatedAt;return JSON.stringify(y)}
+function markChangedRecordsForSync(){try{const old=migrate(JSON.parse(storage.getItem(DB_KEY)||'{}'));const now=new Date().toISOString();SYNC_COLLECTIONS.forEach(k=>{const prev={};(old[k]||[]).forEach(r=>{if(r&&r.id)prev[r.id]=recordForSyncCompare(r)});(db[k]||[]).forEach(r=>{if(r&&r.id&&prev[r.id]!==recordForSyncCompare(r))r._syncUpdatedAt=now})})}catch(e){}}
 function touchDb(){db.meta=db.meta||{};db.meta.updatedAt=new Date().toISOString();db.meta.deviceId=DEVICE_ID;db.meta.revision=num(db.meta.revision)+1;db.meta.schema=11}
 function persistDbOnly(){try{storage.setItem(DB_KEY,JSON.stringify(db))}catch(e){console.error(e)}}
 function save(){
-  touchDb();persistDbOnly();
+  markChangedRecordsForSync();touchDb();persistDbOnly();
   renderAll();
-  clearTimeout(_syncTimer);_syncTimer=setTimeout(()=>{try{if(SETTINGS().autoSync&&getGoogleScriptUrl())syncToGoogleDrive(true)}catch(e){console.error(e)}},2500);
+  clearTimeout(_syncTimer);_syncTimer=setTimeout(()=>{try{if(SETTINGS().autoSync&&getGoogleScriptUrl())syncToGoogleDrive(true)}catch(e){console.error(e)}},1200);
 }
 
 /* =====================================================================
@@ -1176,6 +1179,11 @@ function appendHidden(form,name,value){const input=document.createElement('input
 function appendSyncToken(form){const token=getSyncToken();if(token)appendHidden(form,'token',token)}
 function timeValue(v){const t=new Date(v||0).getTime();return Number.isFinite(t)?t:0}
 function businessRecordCount(source){const d=source&&source.cycles?source:db;return ['cycles','follows','sales','payments','feed_receipts','expenses','handovers'].reduce((a,k)=>a+(Array.isArray(d[k])?d[k].length:0),0)}
+function cloneDbForSync(d){return JSON.parse(JSON.stringify(d||{}))}
+function recordStampForSync(r){return timeValue((r&& (r._syncUpdatedAt||r.updatedAt||r.modifiedAt||r.waivedAt||r.createdAt||r.date))||0)}
+function mergeArrayForSync(localArr,cloudArr){const map=new Map();const put=(r,prefer)=>{if(!r||!r.id)return;const old=map.get(r.id);if(!old){map.set(r.id,{...r});return}const a=recordStampForSync(old),b=recordStampForSync(r);if(b>a||(b===a&&prefer==='local'))map.set(r.id,{...old,...r})};(cloudArr||[]).forEach(r=>put(r,'cloud'));(localArr||[]).forEach(r=>put(r,'local'));return Array.from(map.values()).sort((a,b)=>String(a.date||a.createdAt||'').localeCompare(String(b.date||b.createdAt||''))||String(a.id).localeCompare(String(b.id)))}
+function businessOnlyForSync(source){const d=source&&source.cycles?source:{};const out={};SYNC_COLLECTIONS.forEach(k=>{out[k]=[...(d[k]||[])].sort((a,b)=>String(a.id||'').localeCompare(String(b.id||'')))});return JSON.stringify(out)}
+function mergeDbsForSync(localDb,cloudDb){const local=migrate(cloneDbForSync(localDb||{})),cloud=migrate(cloneDbForSync(cloudDb||{}));const merged=cloneDbForSync(local);SYNC_COLLECTIONS.forEach(k=>{merged[k]=mergeArrayForSync(local[k],cloud[k])});merged.settings=Object.assign({},cloud.settings||{},local.settings||{});merged.meta=Object.assign({},cloud.meta||{},local.meta||{});const mt=Math.max(timeValue(local.meta&&local.meta.updatedAt),timeValue(cloud.meta&&cloud.meta.updatedAt));merged.meta.updatedAt=mt?new Date(mt).toISOString():new Date().toISOString();merged.meta.schema=11;merged.meta.deviceId=DEVICE_ID;return migrate(merged)}
 function dbUpdatedAt(){return db.meta&&db.meta.updatedAt?db.meta.updatedAt:new Date(0).toISOString()}
 function setSyncStatus(msg){const el=document.getElementById('sync-status');if(el)el.innerHTML=msg}
 function syncStateText(){const st=SETTINGS();return st.googleScriptUrl?(st.autoSync?'المزامنة التلقائية مفعلة':'المزامنة جاهزة — التلقائية متوقفة'):'حط رابط Google Apps Script لتفعيل مزامنة الأجهزة'}
@@ -1209,36 +1217,21 @@ async function syncToGoogleDrive(silent){
   const url=getGoogleScriptUrl();if(!url){if(!silent)fail('اكتب رابط Google Apps Script من الإعدادات الأول');return}
   const res=await pullDbFromCloud(!!silent);
   if(res&&res.ok&&res.db){
-    const cloudTime=timeValue(res.updatedAt||(res.db.meta&&res.db.meta.updatedAt)),localTime=timeValue(dbUpdatedAt());
+    const merged=mergeDbsForSync(db,res.db);
+    const localChanged=businessOnlyForSync(merged)!==businessOnlyForSync(db);
+    const cloudChanged=businessOnlyForSync(merged)!==businessOnlyForSync(res.db);
     const cloudCount=businessRecordCount(res.db),localCount=businessRecordCount(db);
 
-    // حماية مهمة: جهاز جديد/فاضي بعد حفظ الإعدادات ما ينفعش يرفع قاعدة فاضية فوق بيانات السحابة.
     if(cloudCount>0&&localCount===0){
-      applyCloudDb(res.db);if(!silent)toast('✅ تم تنزيل بيانات السحابة على الجهاز ده');return;
+      db=merged;persistDbOnly();selectedCycleId=null;renderAll();setSyncStatus('✅ تم تنزيل بيانات السحابة على الجهاز ده');if(!silent)toast('✅ تم تنزيل بيانات السحابة');return;
     }
 
-    // لو السحابة فيها سجلات أكتر والجهاز أقل لكن توقيته أحدث، غالبًا ده بسبب حفظ إعدادات أو جهاز قديم.
-    // في الوضع التلقائي ما نرفعش الأقل فوق الأكتر. في اليدوي نسأل المستخدم.
-    if(cloudCount>localCount&&localTime>cloudTime+1000){
-      if(silent){setSyncStatus('⚠️ السحابة فيها بيانات أكثر من هذا الجهاز — اضغط مزامنة الآن للمراجعة قبل الرفع');return;}
-      if(confirm(`السحابة فيها بيانات أكثر من الجهاز ده.
+    if(localChanged){db=merged;persistDbOnly();selectedCycleId=null;renderAll();}
 
-السحابة: ${cloudCount} حركة/سجل
-الجهاز: ${localCount} حركة/سجل
+    if(cloudChanged){touchDb();persistDbOnly();pushDbToCloud(silent);setSyncStatus('✅ تم دمج بيانات الأجهزة ورفع النسخة الموحدة للسحابة — '+new Date().toLocaleTimeString('en-GB'));if(!silent)toast('✅ تم دمج ورفع بيانات الأجهزة');return;}
 
-موافق = تنزيل نسخة السحابة
-إلغاء = رفع نسخة الجهاز الحالية للسحابة`)){applyCloudDb(res.db);toast('✅ تم تنزيل بيانات السحابة');return}
-      pushDbToCloud(false);return;
-    }
+    if(localChanged){setSyncStatus('✅ تم دمج بيانات السحابة على هذا الجهاز — '+new Date().toLocaleTimeString('en-GB'));if(!silent)toast('✅ تم دمج بيانات السحابة');return;}
 
-    if(cloudTime>localTime+1000){
-      if(!silent&&!confirm(`فيه نسخة أحدث على السحابة. تنزلها على الجهاز ده؟
-
-آخر تعديل محلي: ${fmtDateTime(dbUpdatedAt())}
-آخر تعديل سحابي: ${fmtDateTime(res.updatedAt||(res.db.meta&&res.db.meta.updatedAt))}`))return;
-      applyCloudDb(res.db);if(!silent)toast('✅ تم تنزيل آخر نسخة من السحابة');return;
-    }
-    if(localTime>cloudTime+1000){pushDbToCloud(silent);return}
     setSyncStatus('<span class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6"/></svg></span> البيانات متطابقة — '+new Date().toLocaleTimeString('en-GB'));if(!silent)toast('✅ البيانات متطابقة');return;
   }
   if(res&&res.ok&&res.empty){pushDbToCloud(silent);return}
@@ -1254,7 +1247,13 @@ function logCustomerPaymentToSheet(customerName,amount,collector){
 }
 function submitCycleSync(cycleId,silent){syncToGoogleDrive(silent)}
 function sendBackupToTelegram(){const url=getGoogleScriptUrl();if(!url)return fail('اكتب رابط Google Apps Script من الإعدادات الأول');const c=getSelectedCycle();if(!c)return fail('اختار دورة أولًا');if(!confirm('إرسال ملخص ونسخة إلى تيليجرام الآن؟'))return;toast('🔄 جاري إرسال طلب تيليجرام...');postFormToScript('telegram_backup',{deviceId:DEVICE_ID,updatedAt:dbUpdatedAt()});setTimeout(()=>toast('✅ تم إرسال طلب النسخة إلى تيليجرام'),2500)}
-function startCloudPolling(){setInterval(()=>{try{if(SETTINGS().autoSync&&getGoogleScriptUrl()&&document.visibilityState!=='hidden')syncToGoogleDrive(true)}catch(e){console.error(e)}},60000)}
+function startCloudPolling(){
+  const trySync=()=>{try{if(SETTINGS().autoSync&&getGoogleScriptUrl()&&document.visibilityState!=='hidden')syncToGoogleDrive(true)}catch(e){console.error(e)}};
+  setInterval(trySync,15000);
+  window.addEventListener('focus',()=>setTimeout(trySync,800));
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='hidden')setTimeout(trySync,800)});
+}
+
 
 /* ===================================================================== */
 function applyThemeIcon(theme){
