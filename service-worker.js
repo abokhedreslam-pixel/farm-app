@@ -1,4 +1,4 @@
-const CACHE_NAME = 'farm-pwa-v10-11-smooth-scroll-v1';
+const CACHE_NAME = 'farm-pwa-v10-12-collections-waterfall-v1';
 const APP_SHELL = [
   './',
   './index.html',
