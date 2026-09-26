@@ -1,7 +1,7 @@
 {
-  "name": "إدارة المزرعة v10.13 Simple Numbers",
+  "name": "إدارة المزرعة v10.17 Collection Report",
   "short_name": "المزرعة",
-  "description": "تطبيق إدارة مزرعة الكتاكيت — أرقام بسيطة بدون أصفار وفواصل كثيرة",
+  "description": "تطبيق إدارة مزرعة الكتاكيت — تقرير تحصيلات فترة إلى تيليجرام",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
