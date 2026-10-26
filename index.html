@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>إدارة المزرعة v10.21 Zero-Start Feed Warehouse</title>
-<meta name="description" content="تطبيق إدارة مزرعة الكتاكيت — نسخة v10.21 Zero-Start Feed Warehouse">
+<title>إدارة المزرعة v10.22 Customer Name Merge</title>
+<meta name="description" content="تطبيق إدارة مزرعة الكتاكيت — نسخة v10.22 Customer Name Merge">
 <meta name="theme-color" content="#141423">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -474,7 +474,7 @@ tr.total-row td{background:var(--total-row-bg);font-weight:800;color:var(--ink)}
   </div>
 </div>
 
-<p class="small" style="text-align:center;padding:18px;color:var(--muted)">إدارة المزرعة v10.21 Zero-Start Feed Warehouse — لوحة مراقبة سرية ومخزن علف يبدأ من الصفر — Offline</p>
+<p class="small" style="text-align:center;padding:18px;color:var(--muted)">إدارة المزرعة v10.22 Customer Name Merge — دمج أسماء العملاء المكررة ومخزن علف يبدأ من الصفر — Offline</p>
 </div></main></div>
 <div id="toast" class="toast"></div>
 <div id="modal-bg" class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal"></div></div>
@@ -533,6 +533,9 @@ function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function cleanText(value,maxLen=500){return String(value==null?'':value).replace(/[<>]/g,'').replace(/[\u0000-\u001F\u007F]/g,' ').replace(/\s+/g,' ').trim().slice(0,maxLen)}
 function normName(name){return String(name||'').trim().toLowerCase().replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/\s+/g,' ')}
+// مفتاح العميل يتجاهل المسافات حتى لا يظهر نفس الشخص باسمين مثل: احمد ربيع / احمدربيع.
+function customerKey(name){return normName(name).replace(/\s+/g,'')}
+function canonicalCustomerName(name){const value=cleanText(name,120);return customerKey(value)==='احمدربيعالعسكري'?'احمد ربيع العسكري':value}
 function dateOnly(value){if(!value)return'';const d=new Date(value);if(Number.isNaN(d.getTime()))return'';const x=new Date(d.getTime()-d.getTimezoneOffset()*60000);return x.toISOString().slice(0,10)}
 function todayOnly(){return dateOnly(new Date())}
 function nowLocalInput(){const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16)}
@@ -572,7 +575,15 @@ function migrate(d){
   d.sales.forEach(s=>{s.waived=r2(s.waived||0)});
   return d;
 }
+function repairKnownCustomerAliases(target=db){
+  target=target||{};target.sales=Array.isArray(target.sales)?target.sales:[];target.payments=Array.isArray(target.payments)?target.payments:[];target.audit_events=Array.isArray(target.audit_events)?target.audit_events:[];
+  const canonical='احمد ربيع العسكري',wantedKey=customerKey(canonical),now=new Date().toISOString();let changed=0;
+  target.sales.forEach(s=>{if(customerKey(s.name)!==wantedKey||cleanText(s.name,120)===canonical)return;const before={...s};s.name=canonical;s._syncUpdatedAt=now;target.payments.filter(p=>p.saleId===s.id).forEach(p=>{p.clientName=canonical;p._syncUpdatedAt=now});target.audit_events.push({id:uid(),date:now,deviceId:DEVICE_ID,action:'edit',entity:'sales',recordId:s.id,before,after:{...s},reason:'دمج اسم العميل المكرر: احمدربيع العسكري ← احمد ربيع العسكري',_syncUpdatedAt:now});changed++});
+  if(changed){if(target.audit_events.length>500)target.audit_events=target.audit_events.slice(-500);target.meta=target.meta||{};target.meta.updatedAt=now;target.meta.deviceId=DEVICE_ID;target.meta.revision=num(target.meta.revision)+1;target.meta.customerAliasFixV1022=now}
+  return changed;
+}
 try{const raw=storage.getItem(DB_KEY);if(raw)db=migrate(JSON.parse(raw));else db=EMPTY_DB()}catch(e){console.error(e);db=EMPTY_DB()}
+if(repairKnownCustomerAliases(db)){try{storage.setItem(DB_KEY,JSON.stringify(db))}catch(e){console.error(e)}}
 
 let _syncTimer=null;
 const SYNC_COLLECTIONS=['cycles','follows','sales','payments','feed_receipts','expenses','handovers','audit_events'];
@@ -689,10 +700,10 @@ function buildLedger(cycleId){
 /* ---- تجميع العملاء ---- */
 function customerGroups(){
   const g={};
-  db.sales.forEach(s=>{const key=normName(s.name||'بدون اسم');if(!g[key])g[key]={key,name:(s.name||'بدون اسم').trim(),qty:0,total:0,paid:0,count:0,sales:[],cycles:{}};const x=g[key];const t=saleTotal(s),p=getSalePaid(s.id);x.qty=r2(x.qty+num(s.qty));x.total=r2(x.total+t);x.paid=r2(x.paid+p);x.waived=r2((x.waived||0)+saleWaived(s));x.count++;x.sales.push(s);const rem=r2(t-p-saleWaived(s));if(rem>EPS){const c=getCycleById(s.cycleId);const ck=s.cycleId||'x';if(!x.cycles[ck])x.cycles[ck]={num:c?c.num:'-',date:c?c.date:'',remain:0};x.cycles[ck].remain=r2(x.cycles[ck].remain+rem)}});
-  return Object.values(g).map(x=>{x.waived=x.waived||0;x.remain=Math.max(0,r2(x.total-x.paid-x.waived));x.breakdown=Object.values(x.cycles).sort((a,b)=>String(a.date).localeCompare(String(b.date)));const last=db.payments.filter(p=>{const s=getSale(p.saleId);return s&&normName(s.name)===x.key}).sort(sortDesc)[0];x.lastPayment=last||null;return x});
+  db.sales.forEach(s=>{const key=customerKey(s.name||'بدون اسم');if(!g[key])g[key]={key,name:(s.name||'بدون اسم').trim(),qty:0,total:0,paid:0,count:0,sales:[],cycles:{}};const x=g[key];const t=saleTotal(s),p=getSalePaid(s.id);x.qty=r2(x.qty+num(s.qty));x.total=r2(x.total+t);x.paid=r2(x.paid+p);x.waived=r2((x.waived||0)+saleWaived(s));x.count++;x.sales.push(s);const rem=r2(t-p-saleWaived(s));if(rem>EPS){const c=getCycleById(s.cycleId);const ck=s.cycleId||'x';if(!x.cycles[ck])x.cycles[ck]={num:c?c.num:'-',date:c?c.date:'',remain:0};x.cycles[ck].remain=r2(x.cycles[ck].remain+rem)}});
+  return Object.values(g).map(x=>{x.waived=x.waived||0;x.remain=Math.max(0,r2(x.total-x.paid-x.waived));x.breakdown=Object.values(x.cycles).sort((a,b)=>String(a.date).localeCompare(String(b.date)));const last=db.payments.filter(p=>{const s=getSale(p.saleId);return s&&customerKey(s.name)===x.key}).sort(sortDesc)[0];x.lastPayment=last||null;return x});
 }
-function getCustomerOpenSales(customerName){const key=normName(customerName);return db.sales.filter(s=>normName(s.name)===key&&getSaleRemaining(s.id)>EPS).sort((a,b)=>{const ca=getCycleById(a.cycleId),cb=getCycleById(b.cycleId);return(ca?new Date(ca.date).getTime():0)-(cb?new Date(cb.date).getTime():0)||new Date(a.date)-new Date(b.date)})}
+function getCustomerOpenSales(customerName){const key=customerKey(customerName);return db.sales.filter(s=>customerKey(s.name)===key&&getSaleRemaining(s.id)>EPS).sort((a,b)=>{const ca=getCycleById(a.cycleId),cb=getCycleById(b.cycleId);return(ca?new Date(ca.date).getTime():0)-(cb?new Date(cb.date).getTime():0)||new Date(a.date)-new Date(b.date)})}
 function buildCustomerAllocation(customerName,amount){let left=r2(amount);const allocations=[];getCustomerOpenSales(customerName).forEach(sale=>{if(left<=EPS)return;const remain=getSaleRemaining(sale.id),applied=r2(Math.min(left,remain));if(applied>EPS){allocations.push({sale,cycle:getCycleById(sale.cycleId),amount:applied});left=r2(left-applied)}});return{allocations,left}}
 
 /* ---- تسليم المهني ---- */
@@ -927,7 +938,7 @@ function updateSaleStockInfo(){
 }
 function addSale(){
   const c=getSelectedCycle();if(!c)return fail('اختار دورة أولًا');if(cycleIsLocked(c.id))return;
-  const clientType=document.getElementById('sale-type').value,name=cleanText(document.getElementById('sale-name').value,120),qty=num(document.getElementById('sale-qty').value),price=num(document.getElementById('sale-price').value),paytype=document.getElementById('sale-paytype').value,collector=cleanText(document.getElementById('sale-collector').value,120),date=document.getElementById('sale-date').value||nowLocalInput();
+  const clientType=document.getElementById('sale-type').value,name=canonicalCustomerName(document.getElementById('sale-name').value),qty=num(document.getElementById('sale-qty').value),price=num(document.getElementById('sale-price').value),paytype=document.getElementById('sale-paytype').value,collector=cleanText(document.getElementById('sale-collector').value,120),date=document.getElementById('sale-date').value||nowLocalInput();
   if(!name)return fail('اكتب اسم المشتري');if(!positive(qty))return fail('العدد لازم يكون أكبر من صفر');if(!positive(price))return fail('سعر الجوز لازم يكون أكبر من صفر');
   if(!validDate(date)||isBeforeCycleStart(c,date))return fail('تاريخ البيع قبل بداية الدورة');if(isFutureDate(date))return fail('لا يمكن تسجيل بيع بتاريخ مستقبلي');
   const st=getCycleStats(c.id);if(qty>st.remain+EPS)return fail('الكمية أكبر من المتاح ('+qtyFmt(st.remain)+')');
@@ -936,7 +947,7 @@ function addSale(){
   let collectorFinal=collector||(clientType==='أهالي'?SETTINGS().ahaliCollector:'');
   if(paid>0&&!collectorFinal)return fail('اكتب اسم المستلم / الكاشير للمبلغ المدفوع');
   // كشف تكرار
-  const dup=cycleSales(c.id).find(s=>normName(s.name)===normName(name)&&num(s.qty)===qty&&num(s.price)===price&&dateOnly(s.date)===dateOnly(date));
+  const dup=cycleSales(c.id).find(s=>customerKey(s.name)===customerKey(name)&&num(s.qty)===qty&&num(s.price)===price&&dateOnly(s.date)===dateOnly(date));
   if(dup&&!confirm('⚠️ فيه بيعة مطابقة (نفس العميل والكمية والسعر واليوم) مسجلة قبل كده. تسجّل تاني؟'))return;
   const saleId=uid();
   db.sales.push({id:saleId,clientType,name,qty,price,cycleId:c.id,date,paytype,waived:0,createdAt:new Date().toISOString()});
@@ -950,18 +961,18 @@ function editSale(id){
     {id:'name',label:'اسم العميل',value:s.name,list:'customer-names'},{id:'type',label:'النوع',type:'select',value:s.clientType,options:[{value:'أهالي',label:'أهالي'},{value:'تاجر',label:'تاجر'}]},
     {id:'qty',label:'العدد',type:'number',value:s.qty},{id:'price',label:'سعر الجوز',type:'number',value:s.price},{id:'date',label:'التاريخ',type:'datetime-local',value:String(s.date).slice(0,16)}
   ],onSave(){
-    const name=cleanText(modalVal('name'),120),qty=num(modalVal('qty')),price=num(modalVal('price')),date=modalVal('date');const c=getCycleById(s.cycleId);
+    const name=canonicalCustomerName(modalVal('name')),qty=num(modalVal('qty')),price=num(modalVal('price')),date=modalVal('date');const c=getCycleById(s.cycleId);
     if(!name)return modalErr('الاسم مطلوب');if(!positive(qty)||!positive(price))return modalErr('الكمية والسعر لازم يكونوا أكبر من صفر');
     if(qty>avail+EPS)return modalErr('الكمية أكبر من المتاح ('+qtyFmt(avail)+')');
     const total=r2(qty*price);if(total+EPS<paid)return modalErr('الإجمالي الجديد ('+money(total)+') أقل من المدفوع ('+money(paid)+') — عدّل الدفعات الأول');
     if(!validDate(date)||isBeforeCycleStart(c,date)||isFutureDate(date))return modalErr('التاريخ غير صالح');
     const pays=salePayments(id);if(pays.some(p=>dateOnly(p.date)<dateOnly(date)))return modalErr('فيه دفعة مسجلة قبل تاريخ البيع الجديد');
     if(saleWaived(s)>EPS&&paid+saleWaived(s)>total+EPS)return modalErr('المدفوع + المعفى أكبر من الإجمالي الجديد — ألغِ التصفير الأول');
-    if(!confirmImpact('تعديل بيعة '+name,s.cycleId,normName(s.name),()=>{s.name=name;s.clientType=modalVal('type');s.qty=qty;s.price=price;delete s.total;s.date=date;pays.forEach(p=>p.clientName=name);refreshPaytype(s)}))return false;
+    if(!confirmImpact('تعديل بيعة '+name,s.cycleId,customerKey(s.name),()=>{s.name=name;s.clientType=modalVal('type');s.qty=qty;s.price=price;delete s.total;s.date=date;pays.forEach(p=>p.clientName=name);refreshPaytype(s)}))return false;
     save();toast('✅ تم تعديل البيعة — كل الحسابات اتحدثت');
   }});
 }
-function delSale(id,force){const s=getSale(id);if(!s)return;const pays=salePayments(id);if(!force){if(cycleIsLocked(s.cycleId))return;if(!confirm(`حذف بيعة ${s.name} (${money(saleTotal(s))} ج)؟${pays.length?'\n⚠ هيتمسح معاها '+pays.length+' دفعة بإجمالي '+money(getSalePaid(id))+' ج':''}`))return}if(!confirmImpact('حذف بيعة '+s.name,s.cycleId,normName(s.name),()=>{db.sales=db.sales.filter(x=>x.id!==id);db.payments=db.payments.filter(p=>p.saleId!==id)}))return;save();toast('🗑️ تم حذف البيعة ودفعاتها')}
+function delSale(id,force){const s=getSale(id);if(!s)return;const pays=salePayments(id);if(!force){if(cycleIsLocked(s.cycleId))return;if(!confirm(`حذف بيعة ${s.name} (${money(saleTotal(s))} ج)؟${pays.length?'\n⚠ هيتمسح معاها '+pays.length+' دفعة بإجمالي '+money(getSalePaid(id))+' ج':''}`))return}if(!confirmImpact('حذف بيعة '+s.name,s.cycleId,customerKey(s.name),()=>{db.sales=db.sales.filter(x=>x.id!==id);db.payments=db.payments.filter(p=>p.saleId!==id)}))return;save();toast('🗑️ تم حذف البيعة ودفعاتها')}
 
 function receivePaymentForSale(saleId){
   const s=getSale(saleId);if(!s)return;const remain=getSaleRemaining(saleId);if(remain<=EPS)return fail('البيعة مسددة بالكامل');
@@ -987,11 +998,11 @@ function editPayment(id){
     const amount=r2(modalVal('amount')),collector=cleanText(modalVal('collector'),120),date=modalVal('date');
     if(!positive(amount))return modalErr('المبلغ غير صالح');if(amount>maxAmt+EPS)return modalErr('المبلغ أكبر من المسموح ('+money(maxAmt)+')');if(!collector)return modalErr('اكتب اسم المحصل');
     if(!validDate(date)||isFutureDate(date))return modalErr('التاريخ غير صالح');if(dateOnly(date)<dateOnly(s.date))return modalErr('تاريخ الدفعة قبل تاريخ البيع');
-    if(!confirmImpact('تعديل دفعة '+s.name,s.cycleId,normName(s.name),()=>{p.amount=amount;p.collector=collector;p.date=date;p.note=cleanText(modalVal('note'),300);refreshPaytype(s)}))return false;
+    if(!confirmImpact('تعديل دفعة '+s.name,s.cycleId,customerKey(s.name),()=>{p.amount=amount;p.collector=collector;p.date=date;p.note=cleanText(modalVal('note'),300);refreshPaytype(s)}))return false;
     save();toast('✅ تم تعديل الدفعة');
   }});
 }
-function delPayment(id,force){const p=db.payments.find(x=>x.id===id);if(!p)return;if(p.batchId&&!force){deleteCollectionBatch(p.batchId);return}const s=getSale(p.saleId);if(!force){if(!confirm(`حذف دفعة ${money(p.amount)} ج من ${s?s.name:'؟'}؟\nالدين هيرجع يزيد بنفس المبلغ.`))return;const reason=prompt('سبب حذف التحصيل (هيظهر في لوحة المراقبة):','تم رد الفلوس للعميل');if(reason===null)return;_pendingAuditReasons['payments:'+id]=cleanText(reason,300)}if(!confirmImpact('حذف دفعة',s?s.cycleId:null,s?normName(s.name):null,()=>{db.payments=db.payments.filter(x=>x.id!==id);refreshPaytype(s)}))return;save();toast('🗑️ تم حذف الدفعة')}
+function delPayment(id,force){const p=db.payments.find(x=>x.id===id);if(!p)return;if(p.batchId&&!force){deleteCollectionBatch(p.batchId);return}const s=getSale(p.saleId);if(!force){if(!confirm(`حذف دفعة ${money(p.amount)} ج من ${s?s.name:'؟'}؟\nالدين هيرجع يزيد بنفس المبلغ.`))return;const reason=prompt('سبب حذف التحصيل (هيظهر في لوحة المراقبة):','تم رد الفلوس للعميل');if(reason===null)return;_pendingAuditReasons['payments:'+id]=cleanText(reason,300)}if(!confirmImpact('حذف دفعة',s?s.cycleId:null,s?customerKey(s.name):null,()=>{db.payments=db.payments.filter(x=>x.id!==id);refreshPaytype(s)}))return;save();toast('🗑️ تم حذف الدفعة')}
 
 function ledgerTable(entries,opts={}){
   if(!entries.length)return'<p class="muted">لا توجد حركات.</p>';
@@ -1106,7 +1117,7 @@ function receiveCustomerDebtPayment(){
 }
 function getCollectionBatch(batchId){const payments=db.payments.filter(p=>p.batchId===batchId).sort((a,b)=>(a.allocationOrder||0)-(b.allocationOrder||0));if(!payments.length)return null;const cycleIds=[...new Set(payments.map(paymentCycleId).filter(Boolean))];return{batchId,payments,cycleIds,total:sum(payments,p=>p.amount),clientName:payments[0].clientName||'',collector:payments[0].collector||'',date:payments[0].date||'',parts:payments.map(p=>{const c=getCycleById(paymentCycleId(p));return{amount:p.amount,cycleNum:c?c.num:'-'}})}}
 function editCollectionBatch(batchId){const b=getCollectionBatch(batchId);if(!b)return;openModal({title:'<span class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l.9-4L16.4 4.5a1.8 1.8 0 0 1 2.5 0l.6.6a1.8 1.8 0 0 1 0 2.5L8 19.1z"/><path d="M14.5 6.5l3 3"/></svg></span> تعديل تحصيل مجمع — '+b.clientName,hint:`الإجمالي ${money(b.total)} ج موزع: ${b.parts.map(x=>'#'+x.cycleNum+': '+money(x.amount)).join(' ← ')}. لتغيير المبلغ احذف التحصيل وسجّله تاني.`,fields:[{id:'collector',label:'المحصل',value:b.collector,list:'collector-names'},{id:'date',label:'التاريخ',type:'datetime-local',value:String(b.date).slice(0,16)}],onSave(){const collector=cleanText(modalVal('collector'),120),date=modalVal('date');if(!collector)return modalErr('اكتب اسم المحصل');if(!validDate(date)||isFutureDate(date))return modalErr('التاريخ غير صالح');b.payments.forEach(p=>{p.collector=collector;p.date=date});save();syncCyclesByIds(b.cycleIds);toast('✅ تم تعديل التحصيل المجمع')}})}
-function deleteCollectionBatch(batchId){const b=getCollectionBatch(batchId);if(!b)return;if(!confirm(`حذف التحصيل المجمع بالكامل؟\n${b.clientName} — ${money(b.total)} ج (${b.payments.length} جزء)\nالدين هيرجع على العميل.`))return;const reason=prompt('سبب حذف التحصيل المجمع (هيظهر في لوحة المراقبة):','تم رد الفلوس للعميل');if(reason===null)return;b.payments.forEach(p=>_pendingAuditReasons['payments:'+p.id]=cleanText(reason,300));const saleIds=b.payments.map(p=>p.saleId);if(!confirmImpact('حذف تحصيل مجمع '+b.clientName,b.cycleIds[0]||null,normName(b.clientName),()=>{db.payments=db.payments.filter(p=>p.batchId!==batchId);saleIds.forEach(id=>refreshPaytype(getSale(id)))}))return;save();syncCyclesByIds(b.cycleIds);toast('🗑️ تم حذف التحصيل المجمع')}
+function deleteCollectionBatch(batchId){const b=getCollectionBatch(batchId);if(!b)return;if(!confirm(`حذف التحصيل المجمع بالكامل؟\n${b.clientName} — ${money(b.total)} ج (${b.payments.length} جزء)\nالدين هيرجع على العميل.`))return;const reason=prompt('سبب حذف التحصيل المجمع (هيظهر في لوحة المراقبة):','تم رد الفلوس للعميل');if(reason===null)return;b.payments.forEach(p=>_pendingAuditReasons['payments:'+p.id]=cleanText(reason,300));const saleIds=b.payments.map(p=>p.saleId);if(!confirmImpact('حذف تحصيل مجمع '+b.clientName,b.cycleIds[0]||null,customerKey(b.clientName),()=>{db.payments=db.payments.filter(p=>p.batchId!==batchId);saleIds.forEach(id=>refreshPaytype(getSale(id)))}))return;save();syncCyclesByIds(b.cycleIds);toast('🗑️ تم حذف التحصيل المجمع')}
 function renderCollectionBatches(){const out=document.getElementById('collection-batches-wrap');if(!out)return;const batches=[...new Set(db.payments.filter(p=>p.batchId).map(p=>p.batchId))].map(getCollectionBatch).filter(Boolean).sort(sortDesc);if(!batches.length){out.innerHTML='<p class="muted">لا توجد تحصيلات مجمعة.</p>';return}
   const{page,pages,total,pageItems}=paginate('collectionBatches',batches);
   let h='<table><tr><th>التاريخ</th><th>العميل</th><th>الإجمالي</th><th>التوزيع على الدورات</th><th>المحصل</th><th></th></tr>';pageItems.forEach(b=>{h+=`<tr><td>${fmtDateTime(b.date)}</td><td><b>${esc(b.clientName)}</b></td><td><b class="pos">${money(b.total)}</b></td><td>${b.parts.map(x=>`#${x.cycleNum}: ${money(x.amount)}`).join(' ← ')}</td><td>${esc(b.collector||'-')}</td><td style="white-space:nowrap"><button class="btn btn-sm btn-blue" onclick="editCollectionBatch('${b.batchId}')"><span class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l.9-4L16.4 4.5a1.8 1.8 0 0 1 2.5 0l.6.6a1.8 1.8 0 0 1 0 2.5L8 19.1z"/><path d="M14.5 6.5l3 3"/></svg></span></button> <button class="btn btn-sm btn-red" onclick="deleteCollectionBatch('${b.batchId}')"><span class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6 7l1 12.5A1.5 1.5 0 0 0 8.5 21h7a1.5 1.5 0 0 0 1.5-1.5L18 7"/><path d="M10 11v6M14 11v6"/></svg></span></button></td></tr>`});
@@ -1253,7 +1264,7 @@ function renderAudit(){
 function validateImportedData(d){const errors=[];if(!d||typeof d!=='object')return['الملف غير صالح'];['cycles','sales'].forEach(k=>{if(!Array.isArray(d[k]))errors.push('القسم '+k+' غير موجود')});if(errors.length)return errors;const cid=new Set(d.cycles.map(x=>x.id)),sid=new Set(d.sales.map(x=>x.id));d.sales.forEach((x,i)=>{if(!cid.has(x.cycleId))errors.push('بيعة '+(i+1)+' مرتبطة بدورة غير موجودة');if(!positive(num(x.qty))||!positive(num(x.price)))errors.push('بيعة '+(i+1)+' بكمية أو سعر غير صالح')});(d.payments||[]).forEach((x,i)=>{if(!sid.has(x.saleId))errors.push('دفعة '+(i+1)+' بدون بيعة');if(!positive(num(x.amount)))errors.push('دفعة '+(i+1)+' غير صالحة')});return errors.slice(0,20)}
 function sanitizeImportedDb(d){const clean=o=>{const x={...o};Object.keys(x).forEach(k=>{if(typeof x[k]==='string')x[k]=cleanText(x[k],2000)});return x};const out={};['cycles','follows','sales','payments','feed_receipts','expenses','handovers','audit_events'].forEach(k=>out[k]=(d[k]||[]).map(clean));out.meta=d.meta||{};out.settings=clean(d.settings||{});if(out.settings.autoSync!==true)out.settings.autoSync=out.settings.autoSync==='true'||out.settings.autoSync==='1';return out}
 async function exportData(){const content=JSON.stringify(db,null,2),now=new Date(),stamp=dateOnly(now)+'_'+String(now.getHours()).padStart(2,'0')+'-'+String(now.getMinutes()).padStart(2,'0'),suggestedName='نسخة-المزرعة-'+stamp+'.json';if('showSaveFilePicker' in window){try{const handle=await window.showSaveFilePicker({suggestedName,types:[{description:'نسخة احتياطية',accept:{'application/json':['.json']}}]});const w=await handle.createWritable();await w.write(content);await w.close();toast('✅ تم حفظ النسخة '+handle.name);return}catch(e){if(e&&e.name==='AbortError'){toast('تم إلغاء الحفظ');return}}}const blob=new Blob([content],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=suggestedName;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);toast('✅ تم تنزيل '+suggestedName)}
-function importDataFile(file){if(!file)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);const errors=validateImportedData(d);if(errors.length){alert('لم يتم الاستيراد:\n'+errors.join('\n'));return}if(!confirm('تم فحص الملف. استبدال البيانات الحالية؟ (هيتعمل نسخة من الحالية تلقائيًا)'))return;storage.setItem('farm_backup_before_import_'+Date.now(),JSON.stringify(db));db=migrate(sanitizeImportedDb(d));selectedCycleId=null;save();toast('✅ تم الاستيراد — راجع صفحة فحص الحسابات');switchSideTab('audit')}catch(e){alert('ملف غير صالح')}};r.readAsText(file);document.getElementById('importFile').value=''}
+function importDataFile(file){if(!file)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);const errors=validateImportedData(d);if(errors.length){alert('لم يتم الاستيراد:\n'+errors.join('\n'));return}if(!confirm('تم فحص الملف. استبدال البيانات الحالية؟ (هيتعمل نسخة من الحالية تلقائيًا)'))return;storage.setItem('farm_backup_before_import_'+Date.now(),JSON.stringify(db));db=migrate(sanitizeImportedDb(d));repairKnownCustomerAliases(db);selectedCycleId=null;save();toast('✅ تم الاستيراد — راجع صفحة فحص الحسابات');switchSideTab('audit')}catch(e){alert('ملف غير صالح')}};r.readAsText(file);document.getElementById('importFile').value=''}
 function clearAllData(){if(!confirm('مسح كل البيانات نهائيًا؟'))return;if(prompt('اكتب كلمة "مسح" للتأكيد')!=='مسح')return fail('لم يتم المسح');storage.setItem('farm_backup_before_clear_'+Date.now(),JSON.stringify(db));db=EMPTY_DB();selectedCycleId=null;save();toast('تم المسح (اتحفظت نسخة داخلية قبل المسح)')}
 
 function getGoogleScriptUrl(){return String((SETTINGS().googleScriptUrl||'')).trim()}
@@ -1270,7 +1281,7 @@ function deletedStampForSync(deleted,k,id){return timeValue(((deleted||{})[k]||{
 function mergeDeletedForSync(local,cloud){const out={};SYNC_COLLECTIONS.forEach(k=>{out[k]={...deletedMapForSync(cloud,k),...deletedMapForSync(local,k)}});return out}
 function mergeArrayForSync(localArr,cloudArr,deleted,k){const map=new Map();const put=(r,prefer)=>{if(!r||!r.id)return;const old=map.get(r.id);if(!old){map.set(r.id,{...r});return}const a=recordStampForSync(old),b=recordStampForSync(r);if(b>a||(b===a&&prefer==='local'))map.set(r.id,{...old,...r})};(cloudArr||[]).forEach(r=>put(r,'cloud'));(localArr||[]).forEach(r=>put(r,'local'));return Array.from(map.values()).filter(r=>deletedStampForSync(deleted,k,r.id)<recordStampForSync(r)).sort((a,b)=>String(a.date||a.createdAt||'').localeCompare(String(b.date||b.createdAt||''))||String(a.id).localeCompare(String(b.id)))}
 function businessOnlyForSync(source){const d=source&&source.cycles?source:{};const out={};SYNC_COLLECTIONS.forEach(k=>{out[k]=[...(d[k]||[])].sort((a,b)=>String(a.id||'').localeCompare(String(b.id||'')));out['_deleted_'+k]=deletedMapForSync(d,k)});return JSON.stringify(out)}
-function mergeDbsForSync(localDb,cloudDb){const local=migrate(cloneDbForSync(localDb||{})),cloud=migrate(cloneDbForSync(cloudDb||{}));const merged=cloneDbForSync(local);const deleted=mergeDeletedForSync(local,cloud);SYNC_COLLECTIONS.forEach(k=>{merged[k]=mergeArrayForSync(local[k],cloud[k],deleted,k)});merged.settings=Object.assign({},cloud.settings||{},local.settings||{});merged.meta=Object.assign({},cloud.meta||{},local.meta||{});merged.meta.deleted=deleted;const mt=Math.max(timeValue(local.meta&&local.meta.updatedAt),timeValue(cloud.meta&&cloud.meta.updatedAt));merged.meta.updatedAt=mt?new Date(mt).toISOString():new Date().toISOString();merged.meta.schema=12;merged.meta.deviceId=DEVICE_ID;return migrate(merged)}
+function mergeDbsForSync(localDb,cloudDb){const local=migrate(cloneDbForSync(localDb||{})),cloud=migrate(cloneDbForSync(cloudDb||{}));const merged=cloneDbForSync(local);const deleted=mergeDeletedForSync(local,cloud);SYNC_COLLECTIONS.forEach(k=>{merged[k]=mergeArrayForSync(local[k],cloud[k],deleted,k)});merged.settings=Object.assign({},cloud.settings||{},local.settings||{});merged.meta=Object.assign({},cloud.meta||{},local.meta||{});merged.meta.deleted=deleted;const mt=Math.max(timeValue(local.meta&&local.meta.updatedAt),timeValue(cloud.meta&&cloud.meta.updatedAt));merged.meta.updatedAt=mt?new Date(mt).toISOString():new Date().toISOString();merged.meta.schema=12;merged.meta.deviceId=DEVICE_ID;const ready=migrate(merged);repairKnownCustomerAliases(ready);return ready}
 function dbUpdatedAt(){return db.meta&&db.meta.updatedAt?db.meta.updatedAt:new Date(0).toISOString()}
 function setSyncStatus(msg){const el=document.getElementById('sync-status');if(el)el.innerHTML=msg}
 function syncStateText(){const st=SETTINGS();return st.googleScriptUrl?(st.autoSync?'المزامنة التلقائية مفعلة':'المزامنة جاهزة — التلقائية متوقفة'):'حط رابط Google Apps Script لتفعيل مزامنة الأجهزة'}
@@ -1304,7 +1315,7 @@ function forceReplaceCloudFromThisDevice(){if(!getGoogleScriptUrl())return fail(
 
 تكمل؟`))return;markChangedRecordsForSync();touchDb();persistDbOnly();pushDbToCloud(false,true)}
 async function pullDbFromCloud(silent){const url=getGoogleScriptUrl();if(!url){if(!silent)fail('اكتب رابط Google Apps Script من الإعدادات الأول');return null}setSyncStatus('<span class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.7 5.7L4 16"/><path d="M4 20v-4h4"/></svg></span> جاري قراءة آخر بيانات من السحابة...');try{return await jsonp(url,{action:'pull_db',token:getSyncToken(),deviceId:DEVICE_ID})}catch(e){setSyncStatus('تعذر سحب البيانات: '+esc(e.message));if(!silent)fail(e.message);return null}}
-function applyCloudDb(cloudDb){db=migrate(sanitizeImportedDb(cloudDb));persistDbOnly();selectedCycleId=null;renderAll();setSyncStatus('<span class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6"/></svg></span> تم تحديث الجهاز من السحابة — '+new Date().toLocaleTimeString('en-GB'))}
+function applyCloudDb(cloudDb){db=migrate(sanitizeImportedDb(cloudDb));repairKnownCustomerAliases(db);persistDbOnly();selectedCycleId=null;renderAll();setSyncStatus('<span class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6"/></svg></span> تم تحديث الجهاز من السحابة — '+new Date().toLocaleTimeString('en-GB'))}
 async function syncToGoogleDrive(silent){
   const url=getGoogleScriptUrl();if(!url){if(!silent)fail('اكتب رابط Google Apps Script من الإعدادات الأول');return}
   const res=await pullDbFromCloud(!!silent);

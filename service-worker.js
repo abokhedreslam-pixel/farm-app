@@ -1,4 +1,4 @@
-const CACHE_NAME = 'farm-pwa-v10-21-zero-feed-stock-v1';
+const CACHE_NAME = 'farm-pwa-v10-22-customer-name-merge-v1';
 const APP_SHELL = [
   './',
   './index.html',
