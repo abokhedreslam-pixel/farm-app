@@ -1,7 +1,7 @@
 {
-  "name": "إدارة المزرعة v10.17 Collection Report",
+  "name": "إدارة المزرعة v10.18 Handover Reconcile",
   "short_name": "المزرعة",
-  "description": "تطبيق إدارة مزرعة الكتاكيت — تقرير تحصيلات فترة إلى تيليجرام",
+  "description": "تطبيق إدارة مزرعة الكتاكيت — مطابقة رصيد تسليم المهني مع دفتر التحصيلات",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

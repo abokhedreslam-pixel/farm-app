@@ -1,4 +1,4 @@
-const CACHE_NAME = 'farm-pwa-v10-17-collection-report-v1';
+const CACHE_NAME = 'farm-pwa-v10-18-handover-reconcile-v1';
 const APP_SHELL = [
   './',
   './index.html',
