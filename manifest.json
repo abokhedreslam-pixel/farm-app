@@ -1,7 +1,7 @@
 {
-  "name": "إدارة المزرعة v10.24 Daily Excel + JSON Backup",
+  "name": "إدارة المزرعة v10.25 Refined Interface",
   "short_name": "المزرعة",
-  "description": "تطبيق إدارة مزرعة الكتاكيت — نسختا Excel وJSON كاملتان يوميًا على تيليجرام",
+  "description": "تطبيق إدارة مزرعة الكتاكيت — واجهة محسّنة ومتناسقة مع الحفاظ على الحسابات والمزامنة",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

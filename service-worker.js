@@ -1,4 +1,4 @@
-const CACHE_NAME = 'farm-pwa-v10-24-daily-excel-json-backup-v1';
+const CACHE_NAME = 'farm-pwa-v10-25-refined-interface-v1';
 const APP_SHELL = [
   './',
   './index.html',
