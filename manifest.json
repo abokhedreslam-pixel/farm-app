@@ -1,7 +1,7 @@
 {
-  "name": "إدارة المزرعة v10.22 Customer Name Merge",
+  "name": "إدارة المزرعة v10.24 Daily Excel + JSON Backup",
   "short_name": "المزرعة",
-  "description": "تطبيق إدارة مزرعة الكتاكيت — دمج أسماء العملاء المكررة ومخزن علف يبدأ من الصفر",
+  "description": "تطبيق إدارة مزرعة الكتاكيت — نسختا Excel وJSON كاملتان يوميًا على تيليجرام",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>إدارة المزرعة v10.22 Customer Name Merge</title>
-<meta name="description" content="تطبيق إدارة مزرعة الكتاكيت — نسخة v10.22 Customer Name Merge">
+<title>إدارة المزرعة v10.24 Daily Excel + JSON Backup</title>
+<meta name="description" content="تطبيق إدارة مزرعة الكتاكيت — نسخة v10.24 Daily Excel + JSON Backup">
 <meta name="theme-color" content="#141423">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -474,7 +474,7 @@ tr.total-row td{background:var(--total-row-bg);font-weight:800;color:var(--ink)}
   </div>
 </div>
 
-<p class="small" style="text-align:center;padding:18px;color:var(--muted)">إدارة المزرعة v10.22 Customer Name Merge — دمج أسماء العملاء المكررة ومخزن علف يبدأ من الصفر — Offline</p>
+<p class="small" style="text-align:center;padding:18px;color:var(--muted)">إدارة المزرعة v10.24 Daily Excel + JSON Backup — نسخة Excel وJSON كاملة يومية تلقائية — Offline</p>
 </div></main></div>
 <div id="toast" class="toast"></div>
 <div id="modal-bg" class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal"></div></div>
@@ -1349,12 +1349,17 @@ function logCustomerPaymentToSheet(customerName,amount,collector){
   postFormToScript('log_customer_payment',{data:payload});
 }
 function submitCycleSync(cycleId,silent){syncToGoogleDrive(silent)}
-function sendBackupToTelegram(){const url=getGoogleScriptUrl();if(!url)return fail('اكتب رابط Google Apps Script من الإعدادات الأول');const c=getSelectedCycle();if(!c)return fail('اختار دورة أولًا');if(!confirm('إرسال ملخص ونسخة إلى تيليجرام الآن؟'))return;toast('🔄 جاري إرسال طلب تيليجرام...');postFormToScript('telegram_backup',{deviceId:DEVICE_ID,updatedAt:dbUpdatedAt()});setTimeout(()=>toast('✅ تم إرسال طلب النسخة إلى تيليجرام'),2500)}
+function sendBackupToTelegram(){const url=getGoogleScriptUrl();if(!url)return fail('اكتب رابط Google Apps Script من الإعدادات الأول');if(!confirm('إرسال ملف Excel وملف JSON كامل لكل بيانات المزرعة إلى تيليجرام الآن؟'))return;const payload=JSON.stringify({action:'telegram_backup',syncToken:getSyncToken(),deviceId:DEVICE_ID,updatedAt:dbUpdatedAt(),db});toast('🔄 جاري مزامنة وإرسال Excel وJSON إلى تيليجرام...');postFormToScript('telegram_backup',{data:payload,deviceId:DEVICE_ID,updatedAt:dbUpdatedAt()});setTimeout(()=>toast('✅ تم إرسال طلب نسختي Excel وJSON إلى تيليجرام'),2500)}
+function requestJsonBackupIfCloudDataChanged(){const url=getGoogleScriptUrl();if(!url||!SETTINGS().autoSync)return;const payload=JSON.stringify({action:'telegram_backup_if_changed',syncToken:getSyncToken(),deviceId:DEVICE_ID,updatedAt:dbUpdatedAt(),db});postFormToScript('telegram_backup_if_changed',{data:payload,deviceId:DEVICE_ID,updatedAt:dbUpdatedAt()})}
 function startCloudPolling(){
   const trySync=()=>{try{if(SETTINGS().autoSync&&getGoogleScriptUrl()&&document.visibilityState!=='hidden')syncToGoogleDrive(true)}catch(e){console.error(e)}};
   setInterval(trySync,15000);
   window.addEventListener('focus',()=>setTimeout(trySync,800));
+  // أول ما الإنترنت يرجع: مزامنة فورية، وبعدها يرسل الخادم JSON فقط لو توجد بيانات أحدث من آخر نسخة.
+  window.addEventListener('online',()=>{setTimeout(trySync,300);setTimeout(requestJsonBackupIfCloudDataChanged,2500)});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='hidden')setTimeout(trySync,800)});
+  // فحص عند أول فتح أيضًا؛ الخادم يمنع التكرار لو مفيش بيانات جديدة.
+  if(typeof navigator==='undefined'||navigator.onLine!==false)setTimeout(requestJsonBackupIfCloudDataChanged,3500);
 }
 
 
