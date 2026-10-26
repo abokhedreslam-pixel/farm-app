@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>إدارة المزرعة v10.25 Refined Interface</title>
-<meta name="description" content="تطبيق إدارة مزرعة الكتاكيت — نسخة v10.25 Refined Interface">
+<title>إدارة المزرعة v10.26 Sale Before Cash Collection</title>
+<meta name="description" content="تطبيق إدارة مزرعة الكتاكيت — نسخة v10.26 Sale Before Cash Collection">
 <meta name="theme-color" content="#141423">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -200,7 +200,7 @@ tr.total-row td{background:var(--total-row-bg);font-weight:800;color:var(--ink)}
 }
 @media print{.side-nav,.top-tools,.quick-strip,button{display:none!important}.app-shell{display:block}}
 
-/* ===================== v10.25 Refined Interface ===================== */
+/* ===================== v10.26 Sale Before Cash Collection ===================== */
 body{background:radial-gradient(1000px 620px at 100% -12%,rgba(201,173,167,.08),transparent 58%),var(--bg);line-height:1.65}
 .top-header{position:sticky;top:0;z-index:990;padding:11px 24px;background:color-mix(in srgb,var(--header-bg) 90%,transparent);backdrop-filter:blur(16px);box-shadow:none}
 .top-inner{max-width:1600px;grid-template-columns:minmax(320px,1fr) auto;gap:18px}
@@ -517,7 +517,7 @@ input,select,textarea{background:var(--surface2);border-color:var(--line2);paddi
   </div>
 </div>
 
-<p class="small" style="text-align:center;padding:18px;color:var(--muted)">إدارة المزرعة v10.25 Refined Interface — واجهة محسّنة ومتناسقة — Offline</p>
+<p class="small" style="text-align:center;padding:18px;color:var(--muted)">إدارة المزرعة v10.26 Sale Before Cash Collection — ترتيب البيع قبل التحصيل الكاش — Offline</p>
 </div></main></div>
 
 <nav class="mobile-bottom-nav" aria-label="التنقل السريع">
@@ -609,6 +609,14 @@ function fmtDate(s){if(!s)return'-';const d=new Date(s);if(Number.isNaN(d.getTim
 function fmtDateTime(s){if(!s)return'-';const t=String(s);return fmtDate(s)+(t.includes('T')?' <span class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span>'+t.slice(11,16):'')}
 function sortDesc(a,b){return String(b.date||'').localeCompare(String(a.date||''))}
 function sortAsc(a,b){return String(a.date||'').localeCompare(String(b.date||''))}
+function dateTimeMinuteKey(value){return String(value||'').slice(0,16)}
+function isDateTimeBefore(a,b){return dateTimeMinuteKey(a)<dateTimeMinuteKey(b)}
+function sortLedgerDesc(a,b){
+  const byDate=String(b.date||'').localeCompare(String(a.date||''));if(byDate)return byDate;
+  // عند نفس التاريخ والوقت نعرض البيع أولًا ثم التحصيل المرتبط به.
+  if(a.kind!==b.kind)return a.kind==='sale'?-1:1;
+  return String(b.createdAt||b.id||'').localeCompare(String(a.createdAt||a.id||''));
+}
 
 /* ---------- toast ---------- */
 let _toastT=null;
@@ -645,8 +653,15 @@ function repairKnownCustomerAliases(target=db){
   if(changed){if(target.audit_events.length>500)target.audit_events=target.audit_events.slice(-500);target.meta=target.meta||{};target.meta.updatedAt=now;target.meta.deviceId=DEVICE_ID;target.meta.revision=num(target.meta.revision)+1;target.meta.customerAliasFixV1022=now}
   return changed;
 }
+function repairAutomaticPaymentOrder(target=db){
+  target=target||{};target.sales=Array.isArray(target.sales)?target.sales:[];target.payments=Array.isArray(target.payments)?target.payments:[];target.audit_events=Array.isArray(target.audit_events)?target.audit_events:[];
+  const salesById=new Map(target.sales.map(s=>[s.id,s])),now=new Date().toISOString();let changed=0;
+  target.payments.forEach(payment=>{const sale=salesById.get(payment.saleId),automatic=payment.note==='كاش مع البيع'||payment.note==='دفعة مع البيع';if(!sale||!automatic||!isDateTimeBefore(payment.date,sale.date))return;const before={...payment};payment.date=sale.date;payment._syncUpdatedAt=now;target.audit_events.push({id:uid(),date:now,deviceId:DEVICE_ID,action:'edit',entity:'payments',recordId:payment.id,before,after:{...payment},reason:'تصحيح ترتيب تحصيل البيع: البيع أولًا ثم التحصيل',_syncUpdatedAt:now});changed++});
+  if(changed){if(target.audit_events.length>500)target.audit_events=target.audit_events.slice(-500);target.meta=target.meta||{};target.meta.updatedAt=now;target.meta.deviceId=DEVICE_ID;target.meta.revision=num(target.meta.revision)+1;target.meta.paymentOrderFixV1026=now}
+  return changed;
+}
 try{const raw=storage.getItem(DB_KEY);if(raw)db=migrate(JSON.parse(raw));else db=EMPTY_DB()}catch(e){console.error(e);db=EMPTY_DB()}
-if(repairKnownCustomerAliases(db)){try{storage.setItem(DB_KEY,JSON.stringify(db))}catch(e){console.error(e)}}
+if(repairKnownCustomerAliases(db)+repairAutomaticPaymentOrder(db)){try{storage.setItem(DB_KEY,JSON.stringify(db))}catch(e){console.error(e)}}
 
 let _syncTimer=null;
 const SYNC_COLLECTIONS=['cycles','follows','sales','payments','feed_receipts','expenses','handovers','audit_events'];
@@ -755,9 +770,9 @@ function cycleAgeDays(cycleId,onDateStr){const c=getCycleById(cycleId);if(!c)ret
 /* ---- سجل الحركات الموحّد (بيع + تحصيل) ---- */
 function buildLedger(cycleId){
   const entries=[];
-  db.sales.forEach(s=>{if(cycleId&&s.cycleId!==cycleId)return;const c=getCycleById(s.cycleId);entries.push({kind:'sale',id:s.id,date:s.date,cycleId:s.cycleId,cycleNum:c?c.num:'-',name:s.name,clientType:s.clientType,qty:s.qty,price:s.price,amount:saleTotal(s),paid:getSalePaid(s.id),waived:saleWaived(s),remain:getSaleRemaining(s.id),paytype:s.paytype,note:''})});
-  db.payments.forEach(p=>{const s=getSale(p.saleId);const cid=s?s.cycleId:null;if(cycleId&&cid!==cycleId)return;const c=cid?getCycleById(cid):null;entries.push({kind:'pay',id:p.id,saleId:p.saleId,batchId:p.batchId||null,date:p.date,cycleId:cid,cycleNum:c?c.num:'-',name:s?s.name:(p.clientName||'؟'),amount:num(p.amount),collector:p.collector||'',note:p.note||'',orphan:!s,saleRemainAfter:s?getSaleRemaining(s.id):null})});
-  return entries.sort(sortDesc);
+  db.sales.forEach(s=>{if(cycleId&&s.cycleId!==cycleId)return;const c=getCycleById(s.cycleId);entries.push({kind:'sale',id:s.id,date:s.date,cycleId:s.cycleId,cycleNum:c?c.num:'-',name:s.name,clientType:s.clientType,qty:s.qty,price:s.price,amount:saleTotal(s),paid:getSalePaid(s.id),waived:saleWaived(s),remain:getSaleRemaining(s.id),paytype:s.paytype,note:'',createdAt:s.createdAt||''})});
+  db.payments.forEach(p=>{const s=getSale(p.saleId);const cid=s?s.cycleId:null;if(cycleId&&cid!==cycleId)return;const c=cid?getCycleById(cid):null;entries.push({kind:'pay',id:p.id,saleId:p.saleId,batchId:p.batchId||null,date:p.date,cycleId:cid,cycleNum:c?c.num:'-',name:s?s.name:(p.clientName||'؟'),amount:num(p.amount),collector:p.collector||'',note:p.note||'',orphan:!s,saleRemainAfter:s?getSaleRemaining(s.id):null,createdAt:p.createdAt||''})});
+  return entries.sort(sortLedgerDesc);
 }
 
 /* ---- تجميع العملاء ---- */
@@ -1020,6 +1035,7 @@ function addSale(){
   db.sales.push({id:saleId,clientType,name,qty,price,cycleId:c.id,date,paytype,waived:0,createdAt:new Date().toISOString()});
   if(paid>0)db.payments.push({id:uid(),saleId,clientName:name,amount:r2(paid),date,note:paytype==='كاش'?'كاش مع البيع':'دفعة مع البيع',collector:collectorFinal,createdAt:new Date().toISOString()});
   ['sale-name','sale-qty','sale-price','sale-paid'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('sale-date').value=nowLocalInput();
   save();calcSaleTotal();toast(`✅ تم حفظ بيع ${name}: ${money(total)} ج${paid<total-EPS?' — دين '+money(total-paid):''}`);
 }
 function editSale(id){
@@ -1033,7 +1049,7 @@ function editSale(id){
     if(qty>avail+EPS)return modalErr('الكمية أكبر من المتاح ('+qtyFmt(avail)+')');
     const total=r2(qty*price);if(total+EPS<paid)return modalErr('الإجمالي الجديد ('+money(total)+') أقل من المدفوع ('+money(paid)+') — عدّل الدفعات الأول');
     if(!validDate(date)||isBeforeCycleStart(c,date)||isFutureDate(date))return modalErr('التاريخ غير صالح');
-    const pays=salePayments(id);if(pays.some(p=>dateOnly(p.date)<dateOnly(date)))return modalErr('فيه دفعة مسجلة قبل تاريخ البيع الجديد');
+    const pays=salePayments(id);if(pays.some(p=>isDateTimeBefore(p.date,date)))return modalErr('فيه دفعة مسجلة قبل تاريخ البيع الجديد');
     if(saleWaived(s)>EPS&&paid+saleWaived(s)>total+EPS)return modalErr('المدفوع + المعفى أكبر من الإجمالي الجديد — ألغِ التصفير الأول');
     if(!confirmImpact('تعديل بيعة '+name,s.cycleId,customerKey(s.name),()=>{s.name=name;s.clientType=modalVal('type');s.qty=qty;s.price=price;delete s.total;s.date=date;pays.forEach(p=>p.clientName=name);refreshPaytype(s)}))return false;
     save();toast('✅ تم تعديل البيعة — كل الحسابات اتحدثت');
@@ -1049,7 +1065,7 @@ function receivePaymentForSale(saleId){
   ],onSave(){
     const amount=r2(modalVal('amount')),collector=cleanText(modalVal('collector'),120),date=modalVal('date');
     if(!positive(amount))return modalErr('المبلغ غير صالح');if(amount>remain+EPS)return modalErr('المبلغ أكبر من المتبقي ('+money(remain)+')');if(!collector)return modalErr('اكتب اسم المحصل');
-    if(!validDate(date)||isFutureDate(date))return modalErr('التاريخ غير صالح');if(dateOnly(date)<dateOnly(s.date))return modalErr('تاريخ الدفعة قبل تاريخ البيع');
+    if(!validDate(date)||isFutureDate(date))return modalErr('التاريخ غير صالح');if(isDateTimeBefore(date,s.date))return modalErr('وقت الدفعة قبل وقت البيع');
     db.payments.push({id:uid(),saleId,clientName:s.name,amount,date,note:cleanText(modalVal('note'),300)||'دفعة سداد',collector,createdAt:new Date().toISOString()});
     refreshPaytype(s);
     save();toast(`✅ تم تسجيل ${money(amount)} ج من ${s.name}${getSaleRemaining(saleId)<=EPS?' — البيعة اتسددت بالكامل':' — متبقي '+money(getSaleRemaining(saleId))}`);
@@ -1064,7 +1080,7 @@ function editPayment(id){
   ],onSave(){
     const amount=r2(modalVal('amount')),collector=cleanText(modalVal('collector'),120),date=modalVal('date');
     if(!positive(amount))return modalErr('المبلغ غير صالح');if(amount>maxAmt+EPS)return modalErr('المبلغ أكبر من المسموح ('+money(maxAmt)+')');if(!collector)return modalErr('اكتب اسم المحصل');
-    if(!validDate(date)||isFutureDate(date))return modalErr('التاريخ غير صالح');if(dateOnly(date)<dateOnly(s.date))return modalErr('تاريخ الدفعة قبل تاريخ البيع');
+    if(!validDate(date)||isFutureDate(date))return modalErr('التاريخ غير صالح');if(isDateTimeBefore(date,s.date))return modalErr('وقت الدفعة قبل وقت البيع');
     if(!confirmImpact('تعديل دفعة '+s.name,s.cycleId,customerKey(s.name),()=>{p.amount=amount;p.collector=collector;p.date=date;p.note=cleanText(modalVal('note'),300);refreshPaytype(s)}))return false;
     save();toast('✅ تم تعديل الدفعة');
   }});
@@ -1178,8 +1194,8 @@ function receiveCustomerDebtPayment(){
   const customer=document.getElementById('debt-payment-customer')?.value||'',amount=r2(document.getElementById('debt-payment-amount')?.value),date=document.getElementById('debt-payment-date')?.value||nowLocalInput();let collector=cleanText(document.getElementById('debt-payment-collector')?.value,120);
   if(!customer)return fail('اختر العميل');if(!positive(amount))return fail('اكتب مبلغ صحيح');const open0=getCustomerOpenSales(customer);if(!collector&&open0.length&&open0.every(s=>s.clientType==='أهالي'))collector=SETTINGS().ahaliCollector;if(!collector)return fail('اكتب اسم المحصل');if(!validDate(date)||isFutureDate(date))return fail('تاريخ التحصيل غير صالح');
   const open=getCustomerOpenSales(customer),total=sum(open,s=>getSaleRemaining(s.id));if(amount>total+EPS)return fail('المبلغ أكبر من إجمالي دين العميل: '+money(total));
-  if(open.some(s=>dateOnly(date)<dateOnly(s.date))&&!confirm('تاريخ التحصيل قبل تاريخ بعض البيعات المفتوحة — تكمل؟'))return;
   const plan=buildCustomerAllocation(customer,amount);
+  if(plan.allocations.some(x=>isDateTimeBefore(date,x.sale.date)))return fail('وقت التحصيل قبل وقت إحدى البيعات التي سيتوزع عليها');
   if(!confirm(`تسجيل ${money(amount)} ج من ${customer}؟\nالمحصل: ${collector}\n\n${plan.allocations.map(x=>`الدورة #${x.cycle?x.cycle.num:'-'}: ${money(x.amount)}`).join('\n')}`))return;
   const batchId='batch_'+uid(),now=new Date().toISOString();
   plan.allocations.forEach((x,i)=>{db.payments.push({id:uid(),saleId:x.sale.id,clientName:x.sale.name,amount:x.amount,date,note:'تحصيل مجمع',collector,batchId,allocationOrder:i+1,createdAt:now});refreshPaytype(x.sale)});
@@ -1187,7 +1203,7 @@ function receiveCustomerDebtPayment(){
   logCustomerPaymentToSheet(customer,amount,collector);
 }
 function getCollectionBatch(batchId){const payments=db.payments.filter(p=>p.batchId===batchId).sort((a,b)=>(a.allocationOrder||0)-(b.allocationOrder||0));if(!payments.length)return null;const cycleIds=[...new Set(payments.map(paymentCycleId).filter(Boolean))];return{batchId,payments,cycleIds,total:sum(payments,p=>p.amount),clientName:payments[0].clientName||'',collector:payments[0].collector||'',date:payments[0].date||'',parts:payments.map(p=>{const c=getCycleById(paymentCycleId(p));return{amount:p.amount,cycleNum:c?c.num:'-'}})}}
-function editCollectionBatch(batchId){const b=getCollectionBatch(batchId);if(!b)return;openModal({title:'<span class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l.9-4L16.4 4.5a1.8 1.8 0 0 1 2.5 0l.6.6a1.8 1.8 0 0 1 0 2.5L8 19.1z"/><path d="M14.5 6.5l3 3"/></svg></span> تعديل تحصيل مجمع — '+b.clientName,hint:`الإجمالي ${money(b.total)} ج موزع: ${b.parts.map(x=>'#'+x.cycleNum+': '+money(x.amount)).join(' ← ')}. لتغيير المبلغ احذف التحصيل وسجّله تاني.`,fields:[{id:'collector',label:'المحصل',value:b.collector,list:'collector-names'},{id:'date',label:'التاريخ',type:'datetime-local',value:String(b.date).slice(0,16)}],onSave(){const collector=cleanText(modalVal('collector'),120),date=modalVal('date');if(!collector)return modalErr('اكتب اسم المحصل');if(!validDate(date)||isFutureDate(date))return modalErr('التاريخ غير صالح');b.payments.forEach(p=>{p.collector=collector;p.date=date});save();syncCyclesByIds(b.cycleIds);toast('✅ تم تعديل التحصيل المجمع')}})}
+function editCollectionBatch(batchId){const b=getCollectionBatch(batchId);if(!b)return;openModal({title:'<span class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l.9-4L16.4 4.5a1.8 1.8 0 0 1 2.5 0l.6.6a1.8 1.8 0 0 1 0 2.5L8 19.1z"/><path d="M14.5 6.5l3 3"/></svg></span> تعديل تحصيل مجمع — '+b.clientName,hint:`الإجمالي ${money(b.total)} ج موزع: ${b.parts.map(x=>'#'+x.cycleNum+': '+money(x.amount)).join(' ← ')}. لتغيير المبلغ احذف التحصيل وسجّله تاني.`,fields:[{id:'collector',label:'المحصل',value:b.collector,list:'collector-names'},{id:'date',label:'التاريخ',type:'datetime-local',value:String(b.date).slice(0,16)}],onSave(){const collector=cleanText(modalVal('collector'),120),date=modalVal('date');if(!collector)return modalErr('اكتب اسم المحصل');if(!validDate(date)||isFutureDate(date))return modalErr('التاريخ غير صالح');if(b.payments.some(p=>{const s=getSale(p.saleId);return s&&isDateTimeBefore(date,s.date)}))return modalErr('وقت التحصيل قبل وقت البيع');b.payments.forEach(p=>{p.collector=collector;p.date=date});save();syncCyclesByIds(b.cycleIds);toast('✅ تم تعديل التحصيل المجمع')}})}
 function deleteCollectionBatch(batchId){const b=getCollectionBatch(batchId);if(!b)return;if(!confirm(`حذف التحصيل المجمع بالكامل؟\n${b.clientName} — ${money(b.total)} ج (${b.payments.length} جزء)\nالدين هيرجع على العميل.`))return;const reason=prompt('سبب حذف التحصيل المجمع (هيظهر في لوحة المراقبة):','تم رد الفلوس للعميل');if(reason===null)return;b.payments.forEach(p=>_pendingAuditReasons['payments:'+p.id]=cleanText(reason,300));const saleIds=b.payments.map(p=>p.saleId);if(!confirmImpact('حذف تحصيل مجمع '+b.clientName,b.cycleIds[0]||null,customerKey(b.clientName),()=>{db.payments=db.payments.filter(p=>p.batchId!==batchId);saleIds.forEach(id=>refreshPaytype(getSale(id)))}))return;save();syncCyclesByIds(b.cycleIds);toast('🗑️ تم حذف التحصيل المجمع')}
 function renderCollectionBatches(){const out=document.getElementById('collection-batches-wrap');if(!out)return;const batches=[...new Set(db.payments.filter(p=>p.batchId).map(p=>p.batchId))].map(getCollectionBatch).filter(Boolean).sort(sortDesc);if(!batches.length){out.innerHTML='<p class="muted">لا توجد تحصيلات مجمعة.</p>';return}
   const{page,pages,total,pageItems}=paginate('collectionBatches',batches);
@@ -1335,7 +1351,7 @@ function renderAudit(){
 function validateImportedData(d){const errors=[];if(!d||typeof d!=='object')return['الملف غير صالح'];['cycles','sales'].forEach(k=>{if(!Array.isArray(d[k]))errors.push('القسم '+k+' غير موجود')});if(errors.length)return errors;const cid=new Set(d.cycles.map(x=>x.id)),sid=new Set(d.sales.map(x=>x.id));d.sales.forEach((x,i)=>{if(!cid.has(x.cycleId))errors.push('بيعة '+(i+1)+' مرتبطة بدورة غير موجودة');if(!positive(num(x.qty))||!positive(num(x.price)))errors.push('بيعة '+(i+1)+' بكمية أو سعر غير صالح')});(d.payments||[]).forEach((x,i)=>{if(!sid.has(x.saleId))errors.push('دفعة '+(i+1)+' بدون بيعة');if(!positive(num(x.amount)))errors.push('دفعة '+(i+1)+' غير صالحة')});return errors.slice(0,20)}
 function sanitizeImportedDb(d){const clean=o=>{const x={...o};Object.keys(x).forEach(k=>{if(typeof x[k]==='string')x[k]=cleanText(x[k],2000)});return x};const out={};['cycles','follows','sales','payments','feed_receipts','expenses','handovers','audit_events'].forEach(k=>out[k]=(d[k]||[]).map(clean));out.meta=d.meta||{};out.settings=clean(d.settings||{});if(out.settings.autoSync!==true)out.settings.autoSync=out.settings.autoSync==='true'||out.settings.autoSync==='1';return out}
 async function exportData(){const content=JSON.stringify(db,null,2),now=new Date(),stamp=dateOnly(now)+'_'+String(now.getHours()).padStart(2,'0')+'-'+String(now.getMinutes()).padStart(2,'0'),suggestedName='نسخة-المزرعة-'+stamp+'.json';if('showSaveFilePicker' in window){try{const handle=await window.showSaveFilePicker({suggestedName,types:[{description:'نسخة احتياطية',accept:{'application/json':['.json']}}]});const w=await handle.createWritable();await w.write(content);await w.close();toast('✅ تم حفظ النسخة '+handle.name);return}catch(e){if(e&&e.name==='AbortError'){toast('تم إلغاء الحفظ');return}}}const blob=new Blob([content],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=suggestedName;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);toast('✅ تم تنزيل '+suggestedName)}
-function importDataFile(file){if(!file)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);const errors=validateImportedData(d);if(errors.length){alert('لم يتم الاستيراد:\n'+errors.join('\n'));return}if(!confirm('تم فحص الملف. استبدال البيانات الحالية؟ (هيتعمل نسخة من الحالية تلقائيًا)'))return;storage.setItem('farm_backup_before_import_'+Date.now(),JSON.stringify(db));db=migrate(sanitizeImportedDb(d));repairKnownCustomerAliases(db);selectedCycleId=null;save();toast('✅ تم الاستيراد — راجع صفحة فحص الحسابات');switchSideTab('audit')}catch(e){alert('ملف غير صالح')}};r.readAsText(file);document.getElementById('importFile').value=''}
+function importDataFile(file){if(!file)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);const errors=validateImportedData(d);if(errors.length){alert('لم يتم الاستيراد:\n'+errors.join('\n'));return}if(!confirm('تم فحص الملف. استبدال البيانات الحالية؟ (هيتعمل نسخة من الحالية تلقائيًا)'))return;storage.setItem('farm_backup_before_import_'+Date.now(),JSON.stringify(db));db=migrate(sanitizeImportedDb(d));repairKnownCustomerAliases(db);repairAutomaticPaymentOrder(db);selectedCycleId=null;save();toast('✅ تم الاستيراد — راجع صفحة فحص الحسابات');switchSideTab('audit')}catch(e){alert('ملف غير صالح')}};r.readAsText(file);document.getElementById('importFile').value=''}
 function clearAllData(){if(!confirm('مسح كل البيانات نهائيًا؟'))return;if(prompt('اكتب كلمة "مسح" للتأكيد')!=='مسح')return fail('لم يتم المسح');storage.setItem('farm_backup_before_clear_'+Date.now(),JSON.stringify(db));db=EMPTY_DB();selectedCycleId=null;save();toast('تم المسح (اتحفظت نسخة داخلية قبل المسح)')}
 
 function getGoogleScriptUrl(){return String((SETTINGS().googleScriptUrl||'')).trim()}
@@ -1352,7 +1368,7 @@ function deletedStampForSync(deleted,k,id){return timeValue(((deleted||{})[k]||{
 function mergeDeletedForSync(local,cloud){const out={};SYNC_COLLECTIONS.forEach(k=>{out[k]={...deletedMapForSync(cloud,k),...deletedMapForSync(local,k)}});return out}
 function mergeArrayForSync(localArr,cloudArr,deleted,k){const map=new Map();const put=(r,prefer)=>{if(!r||!r.id)return;const old=map.get(r.id);if(!old){map.set(r.id,{...r});return}const a=recordStampForSync(old),b=recordStampForSync(r);if(b>a||(b===a&&prefer==='local'))map.set(r.id,{...old,...r})};(cloudArr||[]).forEach(r=>put(r,'cloud'));(localArr||[]).forEach(r=>put(r,'local'));return Array.from(map.values()).filter(r=>deletedStampForSync(deleted,k,r.id)<recordStampForSync(r)).sort((a,b)=>String(a.date||a.createdAt||'').localeCompare(String(b.date||b.createdAt||''))||String(a.id).localeCompare(String(b.id)))}
 function businessOnlyForSync(source){const d=source&&source.cycles?source:{};const out={};SYNC_COLLECTIONS.forEach(k=>{out[k]=[...(d[k]||[])].sort((a,b)=>String(a.id||'').localeCompare(String(b.id||'')));out['_deleted_'+k]=deletedMapForSync(d,k)});return JSON.stringify(out)}
-function mergeDbsForSync(localDb,cloudDb){const local=migrate(cloneDbForSync(localDb||{})),cloud=migrate(cloneDbForSync(cloudDb||{}));const merged=cloneDbForSync(local);const deleted=mergeDeletedForSync(local,cloud);SYNC_COLLECTIONS.forEach(k=>{merged[k]=mergeArrayForSync(local[k],cloud[k],deleted,k)});merged.settings=Object.assign({},cloud.settings||{},local.settings||{});merged.meta=Object.assign({},cloud.meta||{},local.meta||{});merged.meta.deleted=deleted;const mt=Math.max(timeValue(local.meta&&local.meta.updatedAt),timeValue(cloud.meta&&cloud.meta.updatedAt));merged.meta.updatedAt=mt?new Date(mt).toISOString():new Date().toISOString();merged.meta.schema=12;merged.meta.deviceId=DEVICE_ID;const ready=migrate(merged);repairKnownCustomerAliases(ready);return ready}
+function mergeDbsForSync(localDb,cloudDb){const local=migrate(cloneDbForSync(localDb||{})),cloud=migrate(cloneDbForSync(cloudDb||{}));const merged=cloneDbForSync(local);const deleted=mergeDeletedForSync(local,cloud);SYNC_COLLECTIONS.forEach(k=>{merged[k]=mergeArrayForSync(local[k],cloud[k],deleted,k)});merged.settings=Object.assign({},cloud.settings||{},local.settings||{});merged.meta=Object.assign({},cloud.meta||{},local.meta||{});merged.meta.deleted=deleted;const mt=Math.max(timeValue(local.meta&&local.meta.updatedAt),timeValue(cloud.meta&&cloud.meta.updatedAt));merged.meta.updatedAt=mt?new Date(mt).toISOString():new Date().toISOString();merged.meta.schema=12;merged.meta.deviceId=DEVICE_ID;const ready=migrate(merged);repairKnownCustomerAliases(ready);repairAutomaticPaymentOrder(ready);return ready}
 function dbUpdatedAt(){return db.meta&&db.meta.updatedAt?db.meta.updatedAt:new Date(0).toISOString()}
 function setSyncStatus(msg){const el=document.getElementById('sync-status');if(el)el.innerHTML=msg}
 function syncStateText(){const st=SETTINGS();return st.googleScriptUrl?(st.autoSync?'المزامنة التلقائية مفعلة':'المزامنة جاهزة — التلقائية متوقفة'):'حط رابط Google Apps Script لتفعيل مزامنة الأجهزة'}
@@ -1386,7 +1402,7 @@ function forceReplaceCloudFromThisDevice(){if(!getGoogleScriptUrl())return fail(
 
 تكمل؟`))return;markChangedRecordsForSync();touchDb();persistDbOnly();pushDbToCloud(false,true)}
 async function pullDbFromCloud(silent){const url=getGoogleScriptUrl();if(!url){if(!silent)fail('اكتب رابط Google Apps Script من الإعدادات الأول');return null}setSyncStatus('<span class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.7 5.7L4 16"/><path d="M4 20v-4h4"/></svg></span> جاري قراءة آخر بيانات من السحابة...');try{return await jsonp(url,{action:'pull_db',token:getSyncToken(),deviceId:DEVICE_ID})}catch(e){setSyncStatus('تعذر سحب البيانات: '+esc(e.message));if(!silent)fail(e.message);return null}}
-function applyCloudDb(cloudDb){db=migrate(sanitizeImportedDb(cloudDb));repairKnownCustomerAliases(db);persistDbOnly();selectedCycleId=null;renderAll();setSyncStatus('<span class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6"/></svg></span> تم تحديث الجهاز من السحابة — '+new Date().toLocaleTimeString('en-GB'))}
+function applyCloudDb(cloudDb){db=migrate(sanitizeImportedDb(cloudDb));repairKnownCustomerAliases(db);repairAutomaticPaymentOrder(db);persistDbOnly();selectedCycleId=null;renderAll();setSyncStatus('<span class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6"/></svg></span> تم تحديث الجهاز من السحابة — '+new Date().toLocaleTimeString('en-GB'))}
 async function syncToGoogleDrive(silent){
   const url=getGoogleScriptUrl();if(!url){if(!silent)fail('اكتب رابط Google Apps Script من الإعدادات الأول');return}
   const res=await pullDbFromCloud(!!silent);

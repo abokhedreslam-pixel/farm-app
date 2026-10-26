@@ -1,7 +1,7 @@
 {
-  "name": "إدارة المزرعة v10.25 Refined Interface",
+  "name": "إدارة المزرعة v10.26 Sale Before Cash Collection",
   "short_name": "المزرعة",
-  "description": "تطبيق إدارة مزرعة الكتاكيت — واجهة محسّنة ومتناسقة مع الحفاظ على الحسابات والمزامنة",
+  "description": "تطبيق إدارة مزرعة الكتاكيت — ضمان تسجيل وعرض البيع قبل التحصيل الكاش المرتبط به",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

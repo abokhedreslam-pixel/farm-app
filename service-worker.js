@@ -1,4 +1,4 @@
-const CACHE_NAME = 'farm-pwa-v10-25-refined-interface-v1';
+const CACHE_NAME = 'farm-pwa-v10-26-sale-before-cash-v1';
 const APP_SHELL = [
   './',
   './index.html',
