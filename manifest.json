@@ -1,7 +1,7 @@
 {
-  "name": "إدارة المزرعة v10.26 Sale Before Cash Collection",
+  "name": "إدارة المزرعة v10.27 Unified Financial Dashboard",
   "short_name": "المزرعة",
-  "description": "تطبيق إدارة مزرعة الكتاكيت — ضمان تسجيل وعرض البيع قبل التحصيل الكاش المرتبط به",
+  "description": "تطبيق إدارة مزرعة الكتاكيت — ملخص مالي موحّد ومتجدد في الشاشة الرئيسية",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

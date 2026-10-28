@@ -1,4 +1,4 @@
-const CACHE_NAME = 'farm-pwa-v10-26-sale-before-cash-v1';
+const CACHE_NAME = 'farm-pwa-v10-27-unified-financial-dashboard-v1';
 const APP_SHELL = [
   './',
   './index.html',
