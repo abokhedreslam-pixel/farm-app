@@ -1,7 +1,7 @@
 {
-  "name": "إدارة المزرعة v10.27 Unified Financial Dashboard",
+  "name": "إدارة المزرعة v10.28 Single Chick Price Input",
   "short_name": "المزرعة",
-  "description": "تطبيق إدارة مزرعة الكتاكيت — ملخص مالي موحّد ومتجدد في الشاشة الرئيسية",
+  "description": "تطبيق إدارة مزرعة الكتاكيت — إدخال سعر الكتكوت الواحد وحساب سعر الجوز تلقائيًا",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
