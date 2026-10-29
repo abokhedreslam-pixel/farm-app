@@ -1,7 +1,7 @@
 {
-  "name": "إدارة المزرعة v10.28 Single Chick Price Input",
+  "name": "إدارة المزرعة v10.29 Farm Journey + Direct Feed",
   "short_name": "المزرعة",
-  "description": "تطبيق إدارة مزرعة الكتاكيت — إدخال سعر الكتكوت الواحد وحساب سعر الجوز تلقائيًا",
+  "description": "تطبيق إدارة مزرعة الكتاكيت — مسار دورة تفاعلي وعلف خارجي مباشر بدون تكرار التكلفة",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
