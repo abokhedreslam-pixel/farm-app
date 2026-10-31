@@ -1,4 +1,4 @@
-const CACHE_NAME = 'farm-pwa-v10-29-journey-direct-feed-v1';
+const CACHE_NAME = 'farm-pwa-v10-31-customer-cash-v1';
 const APP_SHELL = [
   './',
   './index.html',
