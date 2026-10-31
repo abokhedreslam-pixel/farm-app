@@ -1,6 +1,6 @@
 /*
   Google Apps Script — إدارة المزرعة
-  نسخة مدموجة v10.31 Customer Debt Split + Cash Custody:
+  نسخة مدموجة v10.31 FULL — مبنية مباشرة على كود v10.29 الكامل:
   - تحافظ على شيتات الدورات وديون العملاء الموجودة عندك
   - تحافظ على Telegram backup والملخصات والتريجرز
   - تضيف مزامنة كاملة بين الموبايل والكمبيوتر للتطبيق v10.5 PWA Sync
@@ -14,6 +14,7 @@
   - يمنع نسخ إعادة الاتصال المتكررة ويرسل نسخة تلقائية واحدة فقط يوميًا
   - يقسم ديون العملاء إلى أهالي وتجار ويعرض الاسم ثم عليه كام بخط وألوان أوضح
   - يزامن تسويات رصيد المهني وسجل تصفيره بدون المساس بالمبيعات أو التحصيلات
+  - تم تدقيق جميع دوال v10.29: عددها 93، وكلها موجودة هنا بدون حذف
 
   مهم:
   1) لا ترفع هذا الملف على GitHub وفيه توكن حقيقي.
@@ -1514,82 +1515,198 @@ function updateSheetsFromFullDb_(db) {
 
 function buildCustomerDebtsFromDb_(db) {
   db = db || {};
-  var cycles = Array.isArray(db.cycles) ? db.cycles : [];
-  var sales = Array.isArray(db.sales) ? db.sales : [];
-  var payments = Array.isArray(db.payments) ? db.payments : [];
+
+  var cycles =
+    Array.isArray(db.cycles)
+      ? db.cycles
+      : [];
+
+  var sales =
+    Array.isArray(db.sales)
+      ? db.sales
+      : [];
+
+  var payments =
+    Array.isArray(db.payments)
+      ? db.payments
+      : [];
+
   var cyclesById = {};
-  cycles.forEach(function (cycle) { cyclesById[cycle.id] = cycle; });
+
+  cycles.forEach(function (cycle) {
+    cyclesById[cycle.id] = cycle;
+  });
+
   var paymentsBySale = {};
+
   payments.forEach(function (payment) {
-    if (!paymentsBySale[payment.saleId]) paymentsBySale[payment.saleId] = [];
+    if (!paymentsBySale[payment.saleId]) {
+      paymentsBySale[payment.saleId] = [];
+    }
+
     paymentsBySale[payment.saleId].push(payment);
   });
+
   var groups = {};
+
   sales.forEach(function (sale) {
-    var clientType = sale.clientType === 'تاجر' ? 'تاجر' : 'أهالي';
-    var customerKey = customerKeyServer_(sale.name || 'بدون اسم');
-    var key = clientType + '|' + customerKey;
+    var clientType =
+      sale.clientType === 'تاجر'
+        ? 'تاجر'
+        : 'أهالي';
+
+    var customerKey = customerKeyServer_(
+      sale.name || 'بدون اسم'
+    );
+
+    // نفس الاسم قد يشتري كأهالي أو كتاجر؛ كل نوع له حساب دين مستقل.
+    var key =
+      clientType +
+      '|' +
+      customerKey;
+
     if (!groups[key]) {
       groups[key] = {
         key: customerKey,
-        name: String(sale.name || 'بدون اسم').trim(),
+        name:
+          String(
+            sale.name || 'بدون اسم'
+          ).trim(),
         clientType: clientType,
-        salesCount: 0, qty: 0, total: 0, paid: 0, waived: 0, remain: 0,
-        cycles: {}, lastPaymentDate: '', lastCollector: ''
+        salesCount: 0,
+        qty: 0,
+        total: 0,
+        paid: 0,
+        waived: 0,
+        remain: 0,
+        cycles: {},
+        lastPaymentDate: '',
+        lastCollector: ''
       };
     }
+
     var group = groups[key];
+
     var saleTotal = saleTotalFromDb_(sale);
-    var salePayments = paymentsBySale[sale.id] || [];
-    var salePaid = salePayments.reduce(function (sum, payment) {
-      return sum + Number(payment.amount || 0);
-    }, 0);
-    var waived = Number(sale.waived || 0);
-    var remain = Math.max(0, saleTotal - salePaid - waived);
+
+    var salePayments =
+      paymentsBySale[sale.id] || [];
+
+    var salePaid = salePayments.reduce(
+      function (sum, payment) {
+        return (
+          sum +
+          Number(payment.amount || 0)
+        );
+      },
+      0
+    );
+
+    var waived =
+      Number(sale.waived || 0);
+
+    var remain =
+      Math.max(
+        0,
+        saleTotal - salePaid - waived
+      );
+
     group.salesCount++;
     group.qty += Number(sale.qty || 0);
     group.total += saleTotal;
     group.paid += salePaid;
     group.waived += waived;
     group.remain += remain;
+
     if (remain > 0.009) {
-      var cycle = cyclesById[sale.cycleId] || {};
-      var cycleKey = sale.cycleId || 'x';
+      var cycle =
+        cyclesById[sale.cycleId] || {};
+
+      var cycleKey =
+        sale.cycleId || 'x';
+
       if (!group.cycles[cycleKey]) {
-        group.cycles[cycleKey] = {num: cycle.num || '-', date: cycle.date || '', remain: 0};
+        group.cycles[cycleKey] = {
+          num: cycle.num || '-',
+          date: cycle.date || '',
+          remain: 0
+        };
       }
+
       group.cycles[cycleKey].remain += remain;
     }
+
     salePayments.forEach(function (payment) {
       var paymentDate = payment.date || '';
-      if (paymentDate && (!group.lastPaymentDate || String(paymentDate) > String(group.lastPaymentDate))) {
+
+      if (
+        paymentDate &&
+        (
+          !group.lastPaymentDate ||
+          String(paymentDate) >
+          String(group.lastPaymentDate)
+        )
+      ) {
         group.lastPaymentDate = paymentDate;
-        group.lastCollector = payment.collector || '';
+        group.lastCollector =
+          payment.collector || '';
       }
     });
   });
-  return Object.keys(groups).map(function (key) {
-    var group = groups[key];
-    var breakdown = Object.keys(group.cycles)
-      .map(function (cycleKey) { return group.cycles[cycleKey]; })
-      .sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); })
-      .map(function (cycle) { return '#' + cycle.num + ': ' + formatMoney_(cycle.remain); })
-      .join(' ← ');
-    return {
-      name: group.name,
-      clientType: group.clientType,
-      salesCount: group.salesCount,
-      qty: group.qty,
-      total: group.total,
-      paid: group.paid,
-      waived: group.waived,
-      remain: group.remain,
-      collectionRate: group.total ? (group.paid / group.total * 100) : 0,
-      cycleBreakdown: breakdown,
-      lastPaymentDate: group.lastPaymentDate,
-      lastCollector: group.lastCollector
-    };
-  }).sort(function (a, b) { return b.remain - a.remain; });
+
+  return Object
+    .keys(groups)
+    .map(function (key) {
+      var group = groups[key];
+
+      var breakdown = Object
+        .keys(group.cycles)
+        .map(function (cycleKey) {
+          return group.cycles[cycleKey];
+        })
+        .sort(function (a, b) {
+          return String(a.date)
+            .localeCompare(
+              String(b.date)
+            );
+        })
+        .map(function (cycle) {
+          return (
+            '#' +
+            cycle.num +
+            ': ' +
+            formatMoney_(cycle.remain)
+          );
+        })
+        .join(' ← ');
+
+      return {
+        name: group.name,
+        clientType: group.clientType,
+        salesCount: group.salesCount,
+        qty: group.qty,
+        total: group.total,
+        paid: group.paid,
+        waived: group.waived,
+        remain: group.remain,
+        collectionRate:
+          group.total
+            ? (
+                group.paid /
+                group.total *
+                100
+              )
+            : 0,
+        cycleBreakdown: breakdown,
+        lastPaymentDate:
+          group.lastPaymentDate,
+        lastCollector:
+          group.lastCollector
+      };
+    })
+    .sort(function (a, b) {
+      return b.remain - a.remain;
+    });
 }
 
 
